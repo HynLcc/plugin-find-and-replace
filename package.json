@@ -1,7 +1,7 @@
 {
-  "name": "plugin-ranking-calculator",
+  "name": "plugin-find-and-replace",
   "version": "0.1.0",
-  "private": true,
+  "description": "Find and Replace plugin for Teable - Efficient data management tool with multi-mode search and batch processing",
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
@@ -14,9 +14,10 @@
   "dependencies": {
     "@tanstack/react-query": "4.36.1",
     "@teable/core": "latest",
+    "@teable/icons": "^1.10.0",
     "@teable/next-themes": "0.3.5",
     "@teable/openapi": "latest",
-    "@teable/sdk": "^1.10.0",
+    "@teable/sdk": "latest",
     "@teable/ui-lib": "latest",
     "clsx": "^2.1.1",
     "critters": "^0.0.23",

@@ -114,3 +114,19 @@ storybook-static
 需求.md
 RANKING_FEATURE_SUMMARY.md
 CLAUDE.md
+
+# Test files and debug scripts
+test-*.js
+test-*.html
+debug-*.js
+*.test.js
+test-*
+debug-*
+
+# Test documentation and reports
+*TEST_*.md
+*_TEST.md
+TEST_*.md
+
+# Temporary HTML files for testing
+test-regex.html

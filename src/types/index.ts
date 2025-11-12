@@ -250,3 +250,168 @@ export interface IRecordQueryParams extends IPaginationParams {
   projection?: string[];
   fieldKeyType?: 'id' | 'name';
 }
+
+// ===== 查找替换相关类型定义 =====
+
+/**
+ * 搜索模式枚举
+ */
+export enum SearchMode {
+  SIMPLE = 'simple',
+  REGEX = 'regex',
+  DICTIONARY = 'dictionary'
+}
+
+/**
+ * 搜索参数接口
+ */
+export interface ISearchParams {
+  searchText?: string;
+  regexPattern?: string;
+  dictionary?: Record<string, string>;
+  replacementText?: string;
+  caseSensitive?: boolean;
+  wholeWord?: boolean;
+}
+
+/**
+ * 搜索结果项接口
+ */
+export interface ISearchResult {
+  recordId: string;
+  recordName?: string;
+  fieldId: string;
+  fieldName: string;
+  originalValue: string | number | boolean | null;
+  newValue: string | number | boolean | null;
+  matchedText?: string; // 匹配到的具体文本
+  replacement?: string; // 替换后的文本
+  isModified: boolean; // 是否发生了变化
+}
+
+/**
+ * 搜索结果统计接口
+ */
+export interface ISearchStats {
+  totalRecords: number;
+  matchedRecords: number;
+  totalMatches: number;
+  replacedCount: number;
+}
+
+/**
+ * 查找替换状态接口
+ */
+export interface IFindReplaceState {
+  mode: SearchMode;
+  selectedField?: string;
+  searchParams: ISearchParams;
+  searchResults: ISearchResult[];
+  searchStats: ISearchStats;
+  currentPage: number;
+  pageSize: number;
+  isLoading: boolean;
+  error: string | null;
+  hasSearched: boolean;
+  hasReplaced: boolean;
+}
+
+/**
+ * 替换操作选项接口
+ */
+export interface IReplaceOptions {
+  confirmBeforeReplace?: boolean;
+  caseSensitive?: boolean;
+  wholeWord?: boolean;
+  preserveCase?: boolean;
+}
+
+/**
+ * 批量替换项接口
+ */
+export interface IBatchReplaceItem {
+  recordId: string;
+  fieldId: string;
+  oldValue: string | number | boolean | null;
+  newValue: string | number | boolean | null;
+}
+
+/**
+ * 批量替换结果接口
+ */
+export interface IBatchReplaceResult {
+  success: boolean;
+  replacedCount: number;
+  failedCount: number;
+  errors: Array<{
+    recordId: string;
+    error: string;
+  }>;
+}
+
+/**
+ * 搜索算法配置接口
+ */
+export interface ISearchConfig {
+  tableId: string;
+  mode: SearchMode;
+  fieldId: string;
+  params: ISearchParams;
+  options?: IReplaceOptions; // 使其可选，提高兼容性
+}
+
+/**
+ * 字典验证结果接口
+ */
+export interface IDictionaryValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  itemCount: number;
+}
+
+/**
+ * 正则表达式验证结果接口
+ */
+export interface IRegexValidationResult {
+  isValid: boolean;
+  error?: string;
+  pattern?: string;
+  flags?: string;
+}
+
+/**
+ * 查找替换操作历史接口
+ */
+export interface IFindReplaceHistory {
+  id: string;
+  timestamp: Date;
+  mode: SearchMode;
+  fieldId: string;
+  fieldName: string;
+  searchParams: ISearchParams;
+  resultsCount: number;
+  replacedCount: number;
+}
+
+/**
+ * 分页信息接口
+ */
+export interface IPaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+/**
+ * 查找替换组件Props接口
+ */
+export interface IFindReplaceComponentProps extends IBaseComponentProps {
+  tableId: string;
+  onResultChange?: (results: ISearchResult[]) => void;
+  onError?: (error: string) => void;
+  onSuccess?: (message: string) => void;
+}

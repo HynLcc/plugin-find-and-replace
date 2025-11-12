@@ -16,14 +16,41 @@ export const useToast = () => {
     description?: string,
     options?: ToastOptions
   ) => {
-    const toastFn = toast[type];
     const fullMessage = description ? `${message}: ${description}` : message;
 
-    toastFn(fullMessage, {
-      duration: getDuration(type),
-      position: 'top-right',
-      action: options?.action,
-    });
+    // Use appropriate toast method based on type
+    switch (type) {
+      case 'success':
+        toast.success(fullMessage, {
+          duration: getDuration(type),
+          position: 'top-right',
+          action: options?.action,
+        });
+        break;
+      case 'error':
+        toast.error(fullMessage, {
+          duration: getDuration(type),
+          position: 'top-right',
+          action: options?.action,
+        });
+        break;
+      case 'warning':
+        // sonner doesn't have warning, use error instead
+        toast.error(fullMessage, {
+          duration: getDuration(type),
+          position: 'top-right',
+          action: options?.action,
+        });
+        break;
+      case 'info':
+      default:
+        toast.info(fullMessage, {
+          duration: getDuration(type),
+          position: 'top-right',
+          action: options?.action,
+        });
+        break;
+    }
   };
 
   const showSuccess = (message: string, description?: string, options?: ToastOptions) => {

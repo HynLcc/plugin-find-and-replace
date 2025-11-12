@@ -16,7 +16,8 @@ const resources = {
 export async function generateMetadata(): Promise<Metadata> {
 
   return {
-    title: '自动排名',
+    title: 'Find and Replace',
+    description: 'Efficient find and replace tool for Teable tables',
   };
 }
 
