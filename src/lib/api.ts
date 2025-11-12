@@ -1,4 +1,5 @@
 import { axios } from "@teable/openapi";
+import * as openApi from "@teable/openapi";
 
 // 获取Teable主应用的host地址
 function getApiBaseUrl(): string {
@@ -62,3 +63,6 @@ export function reconfigureApi() {
   const baseUrl = getApiBaseUrl();
   axios.defaults.baseURL = baseUrl;
 }
+
+// 导出 openApi 供其他模块使用
+export { openApi };

@@ -137,7 +137,7 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
         throw new Error(t('findReplace.errors.regexPatternRequired', 'Regex pattern is required'));
       }
 
-      if (mode === SearchMode.DICTIONARY && Object.keys(dictionary).length === 0) {
+      if (mode === SearchMode.DICTIONARY && Object.keys(dictionary || {}).length === 0) {
         throw new Error(t('findReplace.errors.dictionaryRequired', 'Dictionary is required'));
       }
 

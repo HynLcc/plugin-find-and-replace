@@ -249,7 +249,7 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
       return { isValid: false, errors, warnings, itemCount: 0 };
     }
 
-    const entries = Object.entries(dictionary);
+    const entries = Object.entries(dictionary || {});
 
     if (entries.length === 0) {
       errors.push('Dictionary cannot be empty');
@@ -313,20 +313,61 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
 
       const results: ISearchResult[] = [];
 
+      console.log('📋 字典搜索 - 检查记录数据:', {
+        总记录数: recordsResponse.data.records.length,
+        字段名: fieldName,
+        字典键: Object.keys(dictionary),
+        '字典键类型': Object.keys(dictionary).map(k => typeof k),
+        字典内容: dictionary
+      });
+
       for (const record of recordsResponse.data.records) {
         const fieldValue = record.fields[fieldName]; // Use fieldName instead of fieldId
         if (fieldValue == null) continue;
 
         const stringValue = String(fieldValue);
 
-        if (dictionary.hasOwnProperty(stringValue)) {
-          const replacement = dictionary[stringValue];
+        // 检查字典中所有键，替换所有匹配项
+        let actualNewValue = stringValue;
+        let matchedKeys: string[] = [];
 
+        // 对字典中的每个键，检查是否在字符串中存在
+        for (const key of Object.keys(dictionary)) {
+          if (actualNewValue.includes(key)) {
+            const replacement = dictionary[key];
+            actualNewValue = actualNewValue.replace(new RegExp(key, 'g'), replacement);
+            matchedKeys.push(key);
+          }
+        }
+
+        const matchedKey = matchedKeys.length > 0 ? matchedKeys[matchedKeys.length - 1] : null; // 最后匹配的键
+        const replacement = matchedKey ? dictionary[matchedKey] : '';
+
+        console.log('🔍 字典搜索 - 检查记录:', {
+          recordId: record.id,
+          fieldValue,
+          stringValue,
+          stringValueType: typeof stringValue,
+          '匹配到的键': matchedKeys,
+          '替换值': replacement,
+          '最终新值': actualNewValue,
+          '字典键列表': Object.keys(dictionary),
+          '包含性检查': Object.keys(dictionary).map(key => ({
+            key,
+            contains: stringValue.includes(key),
+            keyLength: key.length,
+            valueLength: stringValue.length
+          }))
+        });
+
+        if (matchedKeys.length > 0) {
           console.log('📝 字典搜索 - 匹配到记录:', {
             recordId: record.id,
             originalValue: stringValue,
+            matchedKeys,
             replacement,
-            'newValue类型': typeof replacement
+            actualNewValue,
+            'newValue类型': typeof actualNewValue
           });
 
           results.push({
@@ -335,8 +376,8 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
             fieldId,
             fieldName, // Use the actual field name
             originalValue: stringValue,
-            newValue: replacement,
-            matchedText: stringValue,
+            newValue: actualNewValue,
+            matchedText: matchedKey, // 最后匹配的键
             replacement,
             isModified: false, // 搜索阶段总是false，只有替换后才为true
           });
@@ -350,11 +391,60 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
   }
 
   async replaceSingle(tableId: string, result: ISearchResult): Promise<void> {
-    return new SimpleSearchAlgorithm().replaceSingle(tableId, result);
+    if (result.replacement === undefined || result.matchedText === undefined) return;
+
+    console.log('🔄 字典搜索 - 执行单条替换:', {
+      tableId,
+      recordId: result.recordId,
+      fieldName: result.fieldName,
+      originalValue: result.originalValue,
+      newValue: result.newValue,
+      matchedText: result.matchedText,
+      replacement: result.replacement,
+      'newValue类型': typeof result.newValue
+    });
+
+    try {
+      await openApi.updateRecord(tableId, result.recordId, {
+        record: {
+          fields: {
+            [result.fieldName]: result.newValue,
+          },
+        },
+      });
+      console.log('✅ 字典搜索 - 单条替换成功');
+    } catch (error) {
+      console.error('❌ 字典搜索 - 单条替换失败:', error);
+      throw new Error(`Dictionary single replace failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   async replaceAll(tableId: string, results: ISearchResult[]): Promise<void> {
-    return new SimpleSearchAlgorithm().replaceAll(tableId, results);
+    if (results.length === 0) return;
+
+    console.log('🔄 字典搜索 - 执行批量替换:', {
+      tableId,
+      resultCount: results.length,
+      results: results.map(r => ({
+        recordId: r.recordId,
+        originalValue: r.originalValue,
+        newValue: r.newValue,
+        matchedText: r.matchedText
+      }))
+    });
+
+    try {
+      // 批量替换：逐个更新记录
+      for (const result of results) {
+        if (result.replacement !== undefined && result.matchedText !== undefined) {
+          await this.replaceSingle(tableId, result);
+        }
+      }
+      console.log('✅ 字典搜索 - 批量替换成功');
+    } catch (error) {
+      console.error('❌ 字典搜索 - 批量替换失败:', error);
+      throw new Error(`Dictionary replace all failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 }
 
