@@ -1,13 +1,11 @@
 import * as openApi from '@teable/openapi';
-import { useGlobalUrlParams } from '@/hooks/useGlobalUrlParams';
 import {
   SearchMode,
   ISearchConfig,
   ISearchResult,
-  ISearchParams,
   IRegexValidationResult,
   IDictionaryValidationResult,
-  IField
+  ISearchConfigWithView
 } from '@/types';
 import { replaceHandler } from './ReplaceHandler';
 
@@ -15,7 +13,7 @@ import { replaceHandler } from './ReplaceHandler';
  * Search algorithm interface
  */
 interface ISearchAlgorithm {
-  search(config: ISearchConfig): Promise<ISearchResult[]>;
+  search(config: ISearchConfig | ISearchConfigWithView): Promise<ISearchResult[]>;
   replaceSingle(tableId: string, result: ISearchResult): Promise<void>;
   replaceAll(tableId: string, results: ISearchResult[]): Promise<void>;
 }
@@ -41,27 +39,18 @@ abstract class BaseSearchAlgorithm implements ISearchAlgorithm {
   /**
    * 子类必须实现的搜索方法
    */
-  abstract search(config: ISearchConfig): Promise<ISearchResult[]>;
+  abstract search(config: ISearchConfig | ISearchConfigWithView): Promise<ISearchResult[]>;
 }
 
 /**
  * Simple search algorithm implementation
  */
 class SimpleSearchAlgorithm extends BaseSearchAlgorithm {
-  async search(config: ISearchConfig): Promise<ISearchResult[]> {
+  async search(config: ISearchConfig | ISearchConfigWithView): Promise<ISearchResult[]> {
     const { tableId, fieldId, params } = config;
     const { searchText, replacementText } = params;
 
-    console.log('🔍 简单搜索算法 - 输入参数:', {
-      tableId,
-      fieldId,
-      searchText,
-      replacementText,
-      replacementTextType: typeof replacementText
-    });
-
     if (!searchText) {
-      console.log('⚠️ 简单搜索 - 搜索文本为空，返回空结果');
       return [];
     }
 
@@ -77,9 +66,30 @@ class SimpleSearchAlgorithm extends BaseSearchAlgorithm {
 
       const fieldName = targetField.name;
 
-      // Get table records
-      const recordsResponse = await openApi.getRecords(tableId, {
+      // Prepare record query parameters
+      const recordQuery: any = {
         take: 1000, // Limit for performance
+      };
+
+      // Add viewId if present in config
+      if ('viewId' in config && config.viewId) {
+        recordQuery.viewId = config.viewId;
+        console.log('🔍 [SimpleSearch] Using view filter:', {
+          viewId: config.viewId,
+          fullQuery: recordQuery,
+          tableId,
+          fieldId
+        });
+      } else {
+        console.log('🔍 [SimpleSearch] No view filter applied - searching all records');
+      }
+
+      // Get table records (potentially filtered by view)
+      const recordsResponse = await openApi.getRecords(tableId, recordQuery);
+      console.log('📊 [SimpleSearch] API response:', {
+        recordsCount: recordsResponse.data.records.length,
+        hasViewId: !!recordQuery.viewId,
+        viewId: recordQuery.viewId
       });
 
       const results: ISearchResult[] = [];
@@ -96,32 +106,27 @@ class SimpleSearchAlgorithm extends BaseSearchAlgorithm {
           // Calculate the actual new value
           const actualNewValue = replacementText !== undefined ?
             stringValue.replace(new RegExp(searchText, 'g'), replacementText) :
-            fieldValue;
+            (fieldValue as string | number | boolean | null);
 
-          console.log('📝 简单搜索 - 匹配到记录:', {
-            recordId: record.id,
-            originalValue: stringValue,
-            searchText,
-            replacementText,
-            actualNewValue,
-            'newValue类型': typeof actualNewValue
-          });
-
-          results.push({
+          const result: ISearchResult = {
             recordId: record.id,
             recordName: record.name || record.id,
             fieldId,
-            fieldName, // Use the actual field name
+            fieldName,
             originalValue: stringValue,
             newValue: actualNewValue,
             matchedText: searchText,
-            replacement: replacementText,
-            isModified: false, // 搜索阶段总是false，只有替换后才为true
-          });
+            isModified: false,
+          };
+
+          if (replacementText !== undefined) {
+            result.replacement = replacementText;
+          }
+
+          results.push(result);
         }
       }
 
-      console.log('✅ 简单搜索 - 完成搜索，返回结果数量:', results.length);
       return results;
     } catch (error) {
       throw new Error(`Simple search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -149,20 +154,11 @@ class RegexSearchAlgorithm extends BaseSearchAlgorithm {
     }
   }
 
-  async search(config: ISearchConfig): Promise<ISearchResult[]> {
+  async search(config: ISearchConfig | ISearchConfigWithView): Promise<ISearchResult[]> {
     const { tableId, fieldId, params } = config;
     const { regexPattern, replacementText } = params;
 
-    console.log('🔍 正则搜索算法 - 输入参数:', {
-      tableId,
-      fieldId,
-      regexPattern,
-      replacementText,
-      replacementTextType: typeof replacementText
-    });
-
     if (!regexPattern) {
-      console.log('⚠️ 正则搜索 - 正则模式为空，返回空结果');
       return [];
     }
 
@@ -184,9 +180,32 @@ class RegexSearchAlgorithm extends BaseSearchAlgorithm {
 
       const fieldName = targetField.name;
 
-      const regex = new RegExp(regexPattern, 'g');
-      const recordsResponse = await openApi.getRecords(tableId, {
+      // Prepare record query parameters
+      const recordQuery: any = {
         take: 1000,
+      };
+
+      // Add viewId if present in config
+      if ('viewId' in config && config.viewId) {
+        recordQuery.viewId = config.viewId;
+        console.log('🔍 [RegexSearch] Using view filter:', {
+          viewId: config.viewId,
+          fullQuery: recordQuery,
+          tableId,
+          fieldId,
+          regexPattern
+        });
+      } else {
+        console.log('🔍 [RegexSearch] No view filter applied - searching all records');
+      }
+
+      const regex = new RegExp(regexPattern, 'g');
+      const recordsResponse = await openApi.getRecords(tableId, recordQuery);
+      console.log('📊 [RegexSearch] API response:', {
+        recordsCount: recordsResponse.data.records.length,
+        hasViewId: !!recordQuery.viewId,
+        viewId: recordQuery.viewId,
+        regexPattern
       });
 
       const results: ISearchResult[] = [];
@@ -206,26 +225,22 @@ class RegexSearchAlgorithm extends BaseSearchAlgorithm {
             stringValue.replace(regex, replacementText) :
             stringValue;
 
-          console.log('📝 正则搜索 - 匹配到记录:', {
-            recordId: record.id,
-            originalValue: stringValue,
-            regexPattern,
-            replacementText,
-            actualNewValue,
-            'newValue类型': typeof actualNewValue
-          });
-
-          results.push({
+          const regexResult: ISearchResult = {
             recordId: record.id,
             recordName: record.name || record.id,
             fieldId,
-            fieldName, // Use the actual field name
+            fieldName,
             originalValue: stringValue,
             newValue: actualNewValue,
             matchedText: regexPattern,
-            replacement: replacementText,
-            isModified: false, // 搜索阶段总是false，只有替换后才为true
-          });
+            isModified: false,
+          };
+
+          if (replacementText !== undefined) {
+            regexResult.replacement = replacementText;
+          }
+
+          results.push(regexResult);
         }
       }
 
@@ -273,19 +288,11 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
     };
   }
 
-  async search(config: ISearchConfig): Promise<ISearchResult[]> {
+  async search(config: ISearchConfig | ISearchConfigWithView): Promise<ISearchResult[]> {
     const { tableId, fieldId, params } = config;
     const { dictionary } = params;
 
-    console.log('🔍 字典搜索算法 - 输入参数:', {
-      tableId,
-      fieldId,
-      dictionary,
-      dictionarySize: Object.keys(dictionary || {}).length
-    });
-
     if (!dictionary) {
-      console.log('⚠️ 字典搜索 - 字典为空，返回空结果');
       return [];
     }
 
@@ -307,19 +314,34 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
 
       const fieldName = targetField.name;
 
-      const recordsResponse = await openApi.getRecords(tableId, {
+      // Prepare record query parameters
+      const recordQuery: any = {
         take: 1000,
+      };
+
+      // Add viewId if present in config
+      if ('viewId' in config && config.viewId) {
+        recordQuery.viewId = config.viewId;
+        console.log('🔍 [DictionarySearch] Using view filter:', {
+          viewId: config.viewId,
+          fullQuery: recordQuery,
+          tableId,
+          fieldId,
+          dictionaryKeys: Object.keys(dictionary || {})
+        });
+      } else {
+        console.log('🔍 [DictionarySearch] No view filter applied - searching all records');
+      }
+
+      const recordsResponse = await openApi.getRecords(tableId, recordQuery);
+      console.log('📊 [DictionarySearch] API response:', {
+        recordsCount: recordsResponse.data.records.length,
+        hasViewId: !!recordQuery.viewId,
+        viewId: recordQuery.viewId,
+        dictionarySize: Object.keys(dictionary || {}).length
       });
 
       const results: ISearchResult[] = [];
-
-      console.log('📋 字典搜索 - 检查记录数据:', {
-        总记录数: recordsResponse.data.records.length,
-        字段名: fieldName,
-        字典键: Object.keys(dictionary),
-        '字典键类型': Object.keys(dictionary).map(k => typeof k),
-        字典内容: dictionary
-      });
 
       for (const record of recordsResponse.data.records) {
         const fieldValue = record.fields[fieldName]; // Use fieldName instead of fieldId
@@ -335,52 +357,36 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
         for (const key of Object.keys(dictionary)) {
           if (actualNewValue.includes(key)) {
             const replacement = dictionary[key];
-            actualNewValue = actualNewValue.replace(new RegExp(key, 'g'), replacement);
+            if (replacement !== undefined) {
+              actualNewValue = actualNewValue.replace(new RegExp(key, 'g'), replacement);
+            }
             matchedKeys.push(key);
           }
         }
 
-        const matchedKey = matchedKeys.length > 0 ? matchedKeys[matchedKeys.length - 1] : null; // 最后匹配的键
+        const matchedKey = matchedKeys.length > 0 ? matchedKeys[matchedKeys.length - 1] : undefined;
         const replacement = matchedKey ? dictionary[matchedKey] : '';
 
-        console.log('🔍 字典搜索 - 检查记录:', {
-          recordId: record.id,
-          fieldValue,
-          stringValue,
-          stringValueType: typeof stringValue,
-          '匹配到的键': matchedKeys,
-          '替换值': replacement,
-          '最终新值': actualNewValue,
-          '字典键列表': Object.keys(dictionary),
-          '包含性检查': Object.keys(dictionary).map(key => ({
-            key,
-            contains: stringValue.includes(key),
-            keyLength: key.length,
-            valueLength: stringValue.length
-          }))
-        });
-
         if (matchedKeys.length > 0) {
-          console.log('📝 字典搜索 - 匹配到记录:', {
-            recordId: record.id,
-            originalValue: stringValue,
-            matchedKeys,
-            replacement,
-            actualNewValue,
-            'newValue类型': typeof actualNewValue
-          });
-
-          results.push({
+          const dictResult: ISearchResult = {
             recordId: record.id,
             recordName: record.name || record.id,
             fieldId,
-            fieldName, // Use the actual field name
+            fieldName,
             originalValue: stringValue,
             newValue: actualNewValue,
-            matchedText: matchedKey, // 最后匹配的键
-            replacement,
-            isModified: false, // 搜索阶段总是false，只有替换后才为true
-          });
+            isModified: false,
+          };
+
+          if (matchedKey !== undefined) {
+            dictResult.matchedText = matchedKey;
+          }
+
+          if (replacement !== undefined && replacement !== '') {
+            dictResult.replacement = replacement;
+          }
+
+          results.push(dictResult);
         }
       }
 
@@ -393,17 +399,6 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
   async replaceSingle(tableId: string, result: ISearchResult): Promise<void> {
     if (result.replacement === undefined || result.matchedText === undefined) return;
 
-    console.log('🔄 字典搜索 - 执行单条替换:', {
-      tableId,
-      recordId: result.recordId,
-      fieldName: result.fieldName,
-      originalValue: result.originalValue,
-      newValue: result.newValue,
-      matchedText: result.matchedText,
-      replacement: result.replacement,
-      'newValue类型': typeof result.newValue
-    });
-
     try {
       await openApi.updateRecord(tableId, result.recordId, {
         record: {
@@ -412,26 +407,13 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
           },
         },
       });
-      console.log('✅ 字典搜索 - 单条替换成功');
     } catch (error) {
-      console.error('❌ 字典搜索 - 单条替换失败:', error);
       throw new Error(`Dictionary single replace failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   async replaceAll(tableId: string, results: ISearchResult[]): Promise<void> {
     if (results.length === 0) return;
-
-    console.log('🔄 字典搜索 - 执行批量替换:', {
-      tableId,
-      resultCount: results.length,
-      results: results.map(r => ({
-        recordId: r.recordId,
-        originalValue: r.originalValue,
-        newValue: r.newValue,
-        matchedText: r.matchedText
-      }))
-    });
 
     try {
       // 批量替换：逐个更新记录
@@ -440,9 +422,7 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
           await this.replaceSingle(tableId, result);
         }
       }
-      console.log('✅ 字典搜索 - 批量替换成功');
     } catch (error) {
-      console.error('❌ 字典搜索 - 批量替换失败:', error);
       throw new Error(`Dictionary replace all failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

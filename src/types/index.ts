@@ -1,79 +1,6 @@
 // 核心业务类型定义
 
 /**
- * 排名配置接口
- */
-export interface IRankingConfig {
-  sourceColumnId: string;
-  targetColumnId: string;
-  sortDirection: 'asc' | 'desc';
-  rankingMethod: 'standard' | 'dense';
-  zeroValueHandling: 'skipZero' | 'includeZero';
-  groupColumnId?: string; // 可选的分组字段ID
-}
-
-/**
- * 排名输入接口
- */
-export interface IRankingInput {
-  records: IRecordData[];
-  sourceColumnId: string;
-  sortDirection: 'asc' | 'desc';
-  rankingMethod: 'standard' | 'dense';
-  zeroValueHandling: 'skipZero' | 'includeZero';
-}
-
-/**
- * 分组排名输入接口
- */
-export interface IGroupedRankingInput extends IRankingInput {
-  groupColumnId?: string; // 可选的分组字段ID
-}
-
-/**
- * 排名结果接口
- */
-export interface IRankingResult {
-  recordId: string;
-  rank: number;
-}
-
-/**
- * 分组排名结果接口
- */
-export interface IGroupedRankingResult extends IRankingResult {
-  groupValue?: string | number | boolean | null; // 分组值，支持常见字段类型
-  groupName?: string; // 人类可读的分组名称
-}
-
-/**
- * 排名输出接口
- */
-export interface IRankingOutput {
-  results: IRankingResult[];
-  processedCount: number;
-  skippedCount: number;
-}
-
-/**
- * 分组排名输出接口
- */
-export interface IGroupedRankingOutput {
-  results: IGroupedRankingResult[];
-  processedCount: number;
-  skippedCount: number;
-  groupCount: number; // 分组数量
-}
-
-/**
- * 记录数据接口
- */
-export interface IRecordData {
-  id: string;
-  fields: Record<string, string | number | boolean | null | undefined>;
-}
-
-/**
  * 字段查找选项接口
  */
 export interface IFieldLookupOptions {
@@ -132,43 +59,12 @@ export interface IFieldOption {
 }
 
 /**
- * 排名算法类型
- */
-export type RankingMethod = 'standard' | 'dense';
-
-/**
- * 排序方向类型
- */
-export type SortDirection = 'asc' | 'desc';
-
-/**
- * 0值处理策略类型
- */
-export type ZeroValueHandling = 'skipZero' | 'includeZero';
-
-/**
- * 排名计算状态类型
- */
-export type RankingStatus = 'idle' | 'loading' | 'success' | 'error';
-
-/**
  * 错误类型
  */
 export interface IAppError {
   code: string;
   message: string;
   details?: Record<string, unknown>;
-}
-
-/**
- * 排名执行结果类型
- */
-export interface IRankingExecutionResult {
-  success: boolean;
-  processedCount: number;
-  failedCount: number;
-  groupCount?: number;
-  error?: IAppError;
 }
 
 /**
@@ -306,6 +202,7 @@ export interface IFindReplaceState {
   mode: SearchMode;
   selectedField?: string;
   searchParams: ISearchParams;
+  dictionary: Record<string, string>;
   searchResults: ISearchResult[];
   searchStats: ISearchStats;
   currentPage: number;
@@ -314,6 +211,7 @@ export interface IFindReplaceState {
   error: string | null;
   hasSearched: boolean;
   hasReplaced: boolean;
+  replacingRecordIds: Set<string>;
 }
 
 /**
@@ -414,4 +312,58 @@ export interface IFindReplaceComponentProps extends IBaseComponentProps {
   onResultChange?: (results: ISearchResult[]) => void;
   onError?: (error: string) => void;
   onSuccess?: (message: string) => void;
+}
+
+// ===== 视图相关类型定义 =====
+
+/**
+ * 视图接口
+ */
+export interface IView {
+  id: string;
+  name: string;
+  type: string;
+  description?: string;
+  filter?: any;
+  sort?: any;
+  group?: any;
+  columnMeta?: Record<string, any>;
+  createdTime?: string;
+  lastModifiedTime?: string;
+  order?: number;
+  isLocked?: boolean;
+}
+
+/**
+ * 视图选择器Props接口
+ */
+export interface IViewSelectorProps extends IBaseComponentProps {
+  selectedViewId?: string;
+  onViewChange: (viewId: string) => void;
+  disabled?: boolean;
+}
+
+/**
+ * 扩展的查找替换状态接口，包含视图信息
+ */
+export interface IFindReplaceStateWithView extends IFindReplaceState {
+  selectedViewId?: string; // 当前选择的视图ID，undefined或'all'表示所有视图
+  viewFilterActive: boolean; // 是否启用视图筛选
+}
+
+/**
+ * 扩展的搜索配置接口，包含视图信息
+ */
+export interface ISearchConfigWithView extends ISearchConfig {
+  viewId?: string; // 可选的视图ID，用于在特定视图中搜索
+}
+
+/**
+ * 视图搜索结果接口
+ */
+export interface IViewSearchResult {
+  viewId: string;
+  viewName: string;
+  results: ISearchResult[];
+  stats: ISearchStats;
 }

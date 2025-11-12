@@ -50,7 +50,7 @@ export function RegexModeInput({
           type="text"
           value={pattern}
           onChange={(e) => onPatternChange(e.target.value)}
-          placeholder={t('findReplace.regexPatternPlaceholder', 'Enter regular expression...')}
+          placeholder={t('findReplace.regularExpressionPlaceholder', 'Enter regular expression...')}
           className={showValidation && !isValid ? 'border-destructive' : ''}
         />
 
@@ -63,8 +63,8 @@ export function RegexModeInput({
             )}
             <span className={`text-xs ${isValid ? 'text-green-600' : 'text-destructive'}`}>
               {isValid
-                ? t('findReplace.regexValid', 'Valid regex pattern')
-                : validation.error || t('findReplace.regexInvalid', 'Invalid regex pattern')
+                ? t('findReplace.regularExpressionValid', 'Valid regular expression pattern')
+                : validation.error || t('findReplace.regularExpressionInvalid', 'Invalid regular expression pattern')
               }
             </span>
           </div>
@@ -80,7 +80,7 @@ export function RegexModeInput({
           type="text"
           value={replaceText}
           onChange={(e) => onReplaceTextChange(e.target.value)}
-          placeholder={t('findReplace.regexReplacePlaceholder', 'Enter replacement text (use $1, $2 for groups)...')}
+          placeholder={t('findReplace.regularExpressionReplacePlaceholder', 'Enter replacement text (use $1, $2 for groups)...')}
         />
       </div>
 

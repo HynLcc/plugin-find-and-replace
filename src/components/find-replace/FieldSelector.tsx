@@ -50,14 +50,13 @@ export function FieldSelector({ fields, selectedField, onFieldChange }: FieldSel
            supportedTypes.includes(cellValueType);
   });
 
-  const selectedFieldData = textCompatibleFields.find(f => f.id === selectedField);
-
+  
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium">
         {t('findReplace.selectField', 'Select Field')}
       </label>
-      <Select value={selectedField} onValueChange={onFieldChange}>
+      <Select value={selectedField || ''} onValueChange={onFieldChange}>
         <SelectTrigger>
           <SelectValue placeholder={t('findReplace.selectFieldPlaceholder', 'Choose a field to search')} />
         </SelectTrigger>

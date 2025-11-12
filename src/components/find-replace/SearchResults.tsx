@@ -37,11 +37,10 @@ export function SearchResults({
   const paginationData = useMemo(() => {
     const totalPages = Math.ceil(results.length / pageSize);
     const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    const currentPageResults = results.slice(startIndex, endIndex);
+    const currentPageResults = results.slice(startIndex, startIndex + pageSize);
 
     return { totalPages, currentPageResults };
-  }, [results, currentPage, pageSize]);
+  }, [results, currentPage]);
 
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
@@ -94,28 +93,33 @@ export function SearchResults({
   return (
     <div className="space-y-4">
       {/* Results summary */}
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">
-          找到 <Badge variant="secondary" className="mx-1">{results.length}</Badge> 个匹配项
-        </span>
-
-        {/* Pagination info */}
-        {paginationData.totalPages > 1 && (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">
-            第 {currentPage} 页，共 {paginationData.totalPages} 页
+            {t('findReplace.resultsFound', '找到 {{count}} 个匹配项', { count: results.length })}
           </span>
-        )}
+
+          {/* Pagination info */}
+          {paginationData.totalPages > 1 && (
+            <span className="text-muted-foreground">
+              {t('findReplace.pagination', '第 {{current}} 页，共 {{total}} 页', {
+                current: currentPage,
+                total: paginationData.totalPages
+              })}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Results list */}
       <Card>
         <CardContent className="p-0">
           <div className="divide-y">
-            {paginationData.currentPageResults.map((result, index) => (
-              <div key={`${result.recordId}-${index}`} className="p-3 flex items-center justify-between hover:bg-muted/50 transition-colors">
+            {paginationData.currentPageResults.map((result) => (
+              <div key={`${result.recordId}-${result.fieldId}`} className="p-3 flex items-center justify-between hover:bg-muted/50 transition-colors">
                 <div className="flex-1 min-w-0 overflow-hidden">
                   <div className="text-sm flex items-center gap-2 overflow-hidden">
-                    <span className="text-muted-foreground flex-shrink-0">替换前:</span>
+                    <span className="text-muted-foreground flex-shrink-0">{t('findReplace.tableHeaders.originalContent', '替换前:')}:</span>
                     <span className="font-medium overflow-x-auto whitespace-nowrap flex-1 min-w-0">
                       {result.originalValue}
                     </span>
@@ -123,32 +127,32 @@ export function SearchResults({
                   {/* 始终显示替换后的值，无论是已替换还是未替换，只要存在替换内容 */}
                   {(result.replacement !== undefined || result.newValue !== undefined || result.isModified) && (
                     <div className="text-sm text-green-600 mt-1 flex items-center gap-2 overflow-hidden">
-                      <span className="text-muted-foreground flex-shrink-0">替换后:</span>
+                      <span className="text-muted-foreground flex-shrink-0">{t('findReplace.tableHeaders.newContent', '替换后:')}:</span>
                       <span className="font-medium overflow-x-auto whitespace-nowrap flex-1 min-w-0">
-                        {result.newValue ?? result.replacement ?? '(空)'}
+                        {result.newValue ?? result.replacement ?? t('findReplace.empty', '(空)')}
                       </span>
                     </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2 ml-4">
-                  {result.isModified && <Badge variant="default" className="text-xs">已替换</Badge>}
+                  {result.isModified && <Badge variant="default" className="text-xs">{t('findReplace.replaced', '已替换')}</Badge>}
                   {!result.isModified && result.matchedText && (
-                    <Button 
+                    <Button
                       type="button"
-                      size="sm" 
-                      variant="outline" 
-                      onClick={(e) => handleReplaceClick(e, result.recordId, result.fieldId)} 
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => handleReplaceClick(e, result.recordId, result.fieldId)}
                       disabled={isLoading || replacingRecordIds.has(`${result.recordId}-${result.fieldId}`)}
                     >
                       {replacingRecordIds.has(`${result.recordId}-${result.fieldId}`) ? (
                         <>
                           <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          替换中
+                          {t('findReplace.replaceInProgress', '替换中')}
                         </>
                       ) : (
                         <>
                           <RotateCcw className="w-3 h-3 mr-1" />
-                          替换
+                          {t('findReplace.replace', '替换')}
                         </>
                       )}
                     </Button>
@@ -170,7 +174,7 @@ export function SearchResults({
             disabled={currentPage === 1}
           >
             <ArrowLeft className="w-3 h-3 mr-1" />
-            上一页
+            {t('findReplace.previous', '上一页')}
           </Button>
 
           <div className="flex gap-1">
@@ -193,7 +197,7 @@ export function SearchResults({
             onClick={handleNext}
             disabled={currentPage === paginationData.totalPages}
           >
-            下一页
+            {t('findReplace.next', '下一页')}
             <ArrowRight className="w-3 h-3 ml-1" />
           </Button>
         </div>

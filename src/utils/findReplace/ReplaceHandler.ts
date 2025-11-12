@@ -14,16 +14,6 @@ export class ReplaceHandler {
   async replaceSingle(tableId: string, result: ISearchResult): Promise<void> {
     if (result.replacement === undefined) return;
 
-    console.log('🔄 ReplaceHandler - 执行单条替换:', {
-      tableId,
-      recordId: result.recordId,
-      fieldName: result.fieldName,
-      originalValue: result.originalValue,
-      newValue: result.newValue,
-      replacement: result.replacement,
-      'newValue类型': typeof result.newValue
-    });
-
     try {
       await openApi.updateRecord(tableId, result.recordId, {
         record: {
@@ -32,9 +22,7 @@ export class ReplaceHandler {
           },
         },
       });
-      console.log('✅ ReplaceHandler - 单条替换成功');
     } catch (error) {
-      console.error('❌ ReplaceHandler - 单条替换失败:', error);
       throw new Error(`Single replace failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

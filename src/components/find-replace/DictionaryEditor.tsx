@@ -19,13 +19,11 @@ interface DictionaryItem {
 interface DictionaryEditorProps {
   dictionary: Record<string, string>;
   onChange: (dictionary: Record<string, string>) => void;
-  placeholder?: string;
 }
 
 export function DictionaryEditor({
   dictionary,
-  onChange,
-  placeholder = '请添加替换项'
+  onChange
 }: DictionaryEditorProps) {
   const { t } = useTranslation('common');
 
@@ -39,6 +37,7 @@ export function DictionaryEditor({
   });
 
   const [newItem, setNewItem] = useState({ key: '', value: '' });
+  const [editingValues, setEditingValues] = useState<Record<string, { key: string; value: string }>>({});
 
   const parseEscapedString = useCallback((input: string): string => {
     try {
@@ -92,27 +91,26 @@ export function DictionaryEditor({
   }, [items, notifyChange]);
 
   const handleEdit = useCallback((id: string) => {
-    setItems(prev => prev.map(item => {
-      if (item.id === id) {
-        return {
-          ...item,
-          isEditing: true,
-          editKey: escapeToJSON(item.key),
-          editValue: escapeToJSON(item.value)
-        };
-      }
-      return item;
-    }));
-  }, [escapeToJSON]);
+    const item = items.find(i => i.id === id);
+    if (item) {
+      setItems(prev => prev.map(i => i.id === id ? { ...i, isEditing: true } : i));
+      setEditingValues(prev => ({
+        ...prev,
+        [id]: {
+          key: escapeToJSON(item.key),
+          value: escapeToJSON(item.value)
+        }
+      }));
+    }
+  }, [items, escapeToJSON]);
 
   const handleCancelEdit = useCallback((id: string) => {
-    setItems(prev => prev.map(item => {
-      if (item.id === id) {
-        const { editKey: _editKey, editValue: _editValue, isEditing: _isEditing, ...rest } = item;
-        return rest;
-      }
-      return item;
-    }));
+    setItems(prev => prev.map(item => item.id === id ? { ...item, isEditing: false } : item));
+    setEditingValues(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }, []);
 
   const handleSaveEdit = useCallback((id: string, editKey: string, editValue: string) => {
@@ -123,45 +121,54 @@ export function DictionaryEditor({
     const parsedKey = parseEscapedString(editKey.trim());
     const parsedValue = parseEscapedString(editValue.trim());
 
-    const newItems = items.map(item => {
-      if (item.id === id) {
-        const { editKey: _editKey, editValue: _editValue, isEditing: _isEditing, ...rest } = item;
-        return {
-          ...rest,
-          key: parsedKey,
-          value: parsedValue,
-          isEditing: false
-        };
-      }
-      return item;
+    setItems(prev => {
+      const newItems = prev.map(item =>
+        item.id === id
+          ? { ...item, key: parsedKey, value: parsedValue, isEditing: false }
+          : item
+      );
+      notifyChange(newItems);
+      return newItems;
     });
+  }, [parseEscapedString, notifyChange]);
 
-    setItems(newItems);
-    notifyChange(newItems);
-  }, [items, parseEscapedString, notifyChange]);
+  const handleEditChange = useCallback((id: string, field: 'key' | 'value', value: string) => {
+    setEditingValues(prev => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] || { key: '', value: '' }),
+        [field]: value
+      }
+    }));
+  }, []);
 
-  const handleEditKeyDown = useCallback((e: React.KeyboardEvent, id: string, isKey: boolean) => {
+  const handleEditKeyDown = useCallback((e: React.KeyboardEvent, id: string) => {
     if (e.key === 'Enter') {
-      const container = e.currentTarget.closest('[data-item-id]');
-      const keyInput = container?.querySelector('input[placeholder="旧文本"]') as HTMLInputElement;
-      const valueInput = container?.querySelector('input[placeholder="新文本"]') as HTMLInputElement;
-      const key = isKey ? e.currentTarget.value : keyInput?.value || '';
-      const value = isKey ? valueInput?.value || '' : e.currentTarget.value;
-      handleSaveEdit(id, key, value);
-    }
-    if (e.key === 'Escape') {
+      const editValues = editingValues[id];
+      if (editValues?.key && editValues?.value) {
+        handleSaveEdit(id, editValues.key, editValues.value);
+        setEditingValues(prev => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+    } else if (e.key === 'Escape') {
       handleCancelEdit(id);
     }
-  }, [handleSaveEdit, handleCancelEdit]);
+  }, [editingValues, handleSaveEdit, handleCancelEdit]);
 
   const handleSaveClick = useCallback((id: string) => {
-    const container = document.querySelector(`[data-item-id="${id}"]`);
-    const keyInput = container?.querySelector('input[placeholder="旧文本"]') as HTMLInputElement;
-    const valueInput = container?.querySelector('input[placeholder="新文本"]') as HTMLInputElement;
-    if (keyInput && valueInput) {
-      handleSaveEdit(id, keyInput.value, valueInput.value);
+    const editValues = editingValues[id];
+    if (editValues?.key && editValues?.value) {
+      handleSaveEdit(id, editValues.key, editValues.value);
+      setEditingValues(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     }
-  }, [handleSaveEdit]);
+  }, [editingValues, handleSaveEdit]);
 
   return (
     <div className="space-y-3">
@@ -169,10 +176,10 @@ export function DictionaryEditor({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">添加新项</span>
+            <span className="text-sm font-medium">{t('findReplace.addItem', 'Add New Item')}</span>
             {items.length > 0 && (
               <Badge variant="secondary" className="text-xs">
-                {items.length}项
+                {items.length}{t('findReplace.items', 'items')}
               </Badge>
             )}
           </div>
@@ -182,13 +189,13 @@ export function DictionaryEditor({
             disabled={!newItem.key.trim() || !newItem.value.trim()}
           >
             <Plus className="w-3 h-3 mr-1" />
-            添加
+            {t('findReplace.add', 'Add')}
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Input
-            placeholder="旧文本（查找内容）"
-            value={newItem.key}
+            placeholder={t('findReplace.oldTextPlaceholder', 'Old text (to find)')}
+            value={newItem.key ?? ''}
             onChange={(e) => setNewItem(prev => ({ ...prev, key: e.target.value }))}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -197,8 +204,8 @@ export function DictionaryEditor({
             }}
           />
           <Input
-            placeholder="新文本（替换内容）"
-            value={newItem.value}
+            placeholder={t('findReplace.newTextPlaceholder', 'New text (to replace with)')}
+            value={newItem.value ?? ''}
             onChange={(e) => setNewItem(prev => ({ ...prev, value: e.target.value }))}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -207,30 +214,35 @@ export function DictionaryEditor({
             }}
           />
         </div>
-        {/* 轻量级JSON提示 */}
+        {/* JSON提示 */}
         <div className="text-xs text-muted-foreground">
-          💡 提示：JSON中转义字符 <code className="bg-muted px-1 py-0.5 rounded font-mono text-xs">\n</code> 表示换行符，<code className="bg-muted px-1 py-0.5 rounded font-mono text-xs">\\n</code> 表示斜线+n
+          💡 {t('findReplace.dictionaryHelp', 'JSON escape characters: {newline} for newline, {escapedNewline} for backslash+n', {
+            newline: <code className="bg-muted px-1 py-0.5 rounded font-mono text-xs">\n</code>,
+            escapedNewline: <code className="bg-muted px-1 py-0.5 rounded font-mono text-xs">\\n</code>
+          })}
         </div>
       </div>
 
       {/* 字典项列表 */}
-      {items.length > 0 ? (
+      {items.length > 0 && (
         <div className="space-y-0 border rounded-md divide-y">
           {items.map((item) => (
             <div key={item.id} data-item-id={item.id} className="p-3 hover:bg-muted/30 transition-colors">
               {item.isEditing ? (
                 <div className="grid grid-cols-2 gap-3">
                   <Input
-                    placeholder="旧文本"
-                    defaultValue={item.editKey}
+                    placeholder={t('findReplace.oldText', 'Old Text')}
+                    value={editingValues[item.id]?.key ?? ''}
+                    onChange={(e) => handleEditChange(item.id, 'key', e.target.value)}
                     autoFocus
-                    onKeyDown={(e) => handleEditKeyDown(e, item.id, true)}
+                    onKeyDown={(e) => handleEditKeyDown(e, item.id)}
                   />
                   <div className="flex gap-2">
                     <Input
-                      placeholder="新文本"
-                      defaultValue={item.editValue}
-                      onKeyDown={(e) => handleEditKeyDown(e, item.id, false)}
+                      placeholder={t('findReplace.newText', 'New Text')}
+                      value={editingValues[item.id]?.value ?? ''}
+                      onChange={(e) => handleEditChange(item.id, 'value', e.target.value)}
+                      onKeyDown={(e) => handleEditKeyDown(e, item.id)}
                     />
                     <Button
                       size="sm"
@@ -252,13 +264,13 @@ export function DictionaryEditor({
                 <div className="flex items-center justify-between">
                   <div className="grid grid-cols-2 gap-3 flex-1 min-w-0">
                     <div className="space-y-1">
-                      <span className="text-xs text-muted-foreground">旧文本:</span>
+                      <span className="text-xs text-muted-foreground">{t('findReplace.oldText', 'Old Text')}:</span>
                       <div className="text-sm font-medium truncate" title={item.key}>
                         {item.key}
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <span className="text-xs text-muted-foreground">新文本:</span>
+                      <span className="text-xs text-muted-foreground">{t('findReplace.newText', 'New Text')}:</span>
                       <div className="text-sm text-green-600 truncate" title={item.value}>
                         {item.value}
                       </div>
@@ -285,10 +297,6 @@ export function DictionaryEditor({
             </div>
           ))}
         </div>
-      ) : (
-        <div className="text-center py-8 text-sm text-muted-foreground">
-          {placeholder}
-        </div>
       )}
     </div>
   );
@@ -308,6 +316,5 @@ export const DictionaryEditorMemo = memo(DictionaryEditor, (prevProps, nextProps
     }
   }
 
-  return prevProps.onChange === nextProps.onChange &&
-         prevProps.placeholder === nextProps.placeholder;
+  return prevProps.onChange === nextProps.onChange;
 });

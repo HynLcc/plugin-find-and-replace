@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useGlobalUrlParams } from './useGlobalUrlParams';
 import { toast } from 'sonner';
@@ -9,7 +9,8 @@ import {
   ISearchParams,
   ISearchResult,
   ISearchStats,
-  IFindReplaceState
+  IFindReplaceStateWithView,
+  ISearchConfigWithView
 } from '@/types';
 import { searchAlgorithms } from '@/utils/findReplace/searchAlgorithms';
 
@@ -18,12 +19,22 @@ import { searchAlgorithms } from '@/utils/findReplace/searchAlgorithms';
  *
  * This hook manages all the state for the find and replace functionality,
  * including search modes, parameters, results, and UI state.
+ * Now includes view filtering support.
  */
-export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & {
-  handleSearch: () => Promise<void>;
+export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchStats'> & {
+  handleSearch: (viewName?: string) => Promise<void>;
   handleReplaceAll: () => Promise<void>;
   handleReplaceSingle: (recordId: string, fieldId: string) => Promise<void>;
   searchStats: ISearchStats;
+  // Setter functions for state management
+  setSelectedField: (field: string) => void;
+  setSearchText: (text: string) => void;
+  setReplaceText: (text: string) => void;
+  setRegexPattern: (pattern: string) => void;
+  setDictionary: (dict: Record<string, string>) => void;
+  setSelectedViewId: (viewId: string) => void;
+  // Additional handler functions
+  handleModeChange: (newMode: SearchMode) => void;
 } {
   const { t } = useTranslation('common');
   const { tableId } = useGlobalUrlParams();
@@ -33,10 +44,17 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
   const [selectedField, setSelectedField] = useState<string>('');
   const [searchParams, setSearchParams] = useState<ISearchParams>({});
   const [searchResults, setSearchResults] = useState<ISearchResult[]>([]);
+
+  // View filtering state
+  const [selectedViewId, setSelectedViewIdState] = useState<string>();
+  const [viewFilterActive, setViewFilterActive] = useState(false);
+
+  // Pagination state
+  const [currentPage] = useState(1);
+  const [pageSize] = useState(10); // Fixed page size
+
   // 保存原始搜索结果快照，用于全部替换时基于原始值计算
   const [originalSearchResults, setOriginalSearchResults] = useState<ISearchResult[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
@@ -52,19 +70,17 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
 
   // Search parameter states for different modes
   const [searchText, setSearchTextState] = useState('');
-  const [replaceText, setReplaceTextState] = useState('');
+  const [, setReplaceTextState] = useState('');
   const [regexPattern, setRegexPatternState] = useState('');
   const [dictionary, setDictionaryState] = useState<Record<string, string>>({});
 
   // Update search parameters when individual states change
   const setSearchText = useCallback((text: string) => {
-    console.log('🔍 用户输入 - 查找内容:', text);
     setSearchTextState(text);
     setSearchParams(prev => ({ ...prev, searchText: text }));
   }, []);
 
   const setReplaceText = useCallback((text: string) => {
-    console.log('📝 用户输入 - 替换内容:', text);
     setReplaceTextState(text);
     setSearchParams(prev => ({ ...prev, replacementText: text }));
   }, []);
@@ -79,10 +95,20 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
     setSearchParams(prev => ({ ...prev, dictionary: dict }));
   }, []);
 
+  const setSelectedViewId = useCallback((viewId: string) => {
+    setSelectedViewIdState(viewId);
+    // 视图变更时清空搜索结果，要求用户重新搜索
+    setSearchResults([]);
+    setOriginalSearchResults([]);
+    setHasSearched(false);
+    setHasReplaced(false);
+    setError(null);
+    // 如果选择了视图，则激活视图筛选
+    setViewFilterActive(viewId !== undefined);
+  }, []);
+
   // 自定义 setMode 函数，在模式切换时清空相关输入
   const handleModeChange = useCallback((newMode: SearchMode) => {
-    console.log('🔄 切换搜索模式:', { 从: mode, 到: newMode });
-
     // 清空所有搜索状态和结果
     setSearchText('');
     setReplaceText('');
@@ -93,25 +119,25 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
     setHasSearched(false);
     setHasReplaced(false);
     setError(null);
-    setCurrentPage(1);
 
     // 设置新模式
     setMode(newMode);
     setSearchParams({}); // 清空搜索参数
+  }, [setSearchText, setReplaceText, setRegexPattern, setDictionary]);
 
-    console.log('✅ 模式切换完成，已清空所有输入和结果');
-  }, [mode, setMode]);
-
-  // Calculate search statistics
-  const searchStats: ISearchStats = {
-    totalRecords: searchResults.length,
-    matchedRecords: searchResults.filter(r => r.matchedText).length,
-    totalMatches: searchResults.reduce((acc, result) => acc + (result.matchedText ? 1 : 0), 0),
-    replacedCount: searchResults.filter(r => r.isModified).length,
-  };
+  // Calculate search statistics - 使用 useMemo 优化计算
+  const searchStats: ISearchStats = useMemo(() => {
+    const matchedRecords = searchResults.filter(r => r.matchedText);
+    return {
+      totalRecords: searchResults.length,
+      matchedRecords: matchedRecords.length,
+      totalMatches: matchedRecords.length,
+      replacedCount: searchResults.filter(r => r.isModified).length,
+    };
+  }, [searchResults]);
 
   // Search handler
-  const handleSearch = useCallback(async () => {
+  const handleSearch = useCallback(async (viewName?: string) => {
     if (!tableId || !selectedField) {
       toast.error(t('findReplace.errors.noTableOrField', 'Please select a field to search'));
       return;
@@ -134,7 +160,7 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
       }
 
       if (mode === SearchMode.REGEX && !regexPattern) {
-        throw new Error(t('findReplace.errors.regexPatternRequired', 'Regex pattern is required'));
+        throw new Error(t('findReplace.errors.regularExpressionPatternRequired', 'Regular expression pattern is required'));
       }
 
       if (mode === SearchMode.DICTIONARY && Object.keys(dictionary || {}).length === 0) {
@@ -147,42 +173,54 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
         replacementText: searchParams.replacementText ?? '',
       };
 
-      console.log('🚀 开始搜索 - 调用搜索算法:', {
+      const searchConfigBase: Omit<ISearchConfigWithView, 'viewId'> = {
         mode,
-        tableId,
-        selectedField,
-        searchParams: searchParamsWithReplacement,
-        'searchParams.replacementText': searchParamsWithReplacement.replacementText,
-        'replacementText类型': typeof searchParamsWithReplacement.replacementText
-      });
-
-      const results = await algorithm.search({
         tableId,
         fieldId: selectedField,
         params: searchParamsWithReplacement,
+      };
+
+      // 只有当 finalViewId 存在时才添加 viewId 属性
+      const finalViewId = viewFilterActive && selectedViewId ? selectedViewId : undefined;
+      const searchConfig: ISearchConfigWithView = finalViewId
+        ? { ...searchConfigBase, viewId: finalViewId }
+        : searchConfigBase;
+
+      console.log('🔧 [useFindReplaceState] Building search config:', {
+        mode,
+        tableId,
+        fieldId: selectedField,
+        viewFilterActive,
+        selectedViewId,
+        selectedViewIdType: typeof selectedViewId,
+        finalViewId,
+        finalViewIdType: typeof finalViewId,
+        searchParamsKeys: Object.keys(searchParamsWithReplacement)
       });
 
-      console.log('📊 搜索结果返回:', {
-      结果数量: results.length,
-      前几个结果: results.slice(0, 3).map(r => ({
-        recordId: r.recordId,
-        originalValue: r.originalValue,
-        newValue: r.newValue,
-        replacement: r.replacement,
-        'newValue类型': typeof r.newValue
-      }))
-    });
+      console.log('🔧 [useFindReplaceState] Final search config:', { searchConfig });
+
+      const results = await algorithm.search(searchConfig);
 
       setSearchResults(results);
       // 保存原始搜索结果快照，用于全部替换时基于原始值计算
-      const originalSnapshot = results.map(r => ({ ...r }));
-      setOriginalSearchResults(originalSnapshot);
-      setCurrentPage(1);
+      setOriginalSearchResults(results.map(r => ({ ...r })));
 
       if (results.length === 0) {
-        toast.info(t('findReplace.noResults', 'No matches found'));
+        const message = viewFilterActive && selectedViewId && viewName
+          ? t('findReplace.noResultsInView', '在视图 "{{viewName}}" 中未找到匹配项', {
+              viewName: viewName
+            })
+          : t('findReplace.noResults', 'No matches found');
+        toast.info(message);
       } else {
-        toast.success(t('findReplace.resultsFound', 'Found {{count}} matches', { count: results.length }));
+        const message = viewFilterActive && selectedViewId && viewName
+          ? t('findReplace.resultsFoundInView', '在视图 "{{viewName}}" 中找到 {{count}} 个匹配项', {
+              count: results.length,
+              viewName: viewName
+            })
+          : t('findReplace.resultsFound', 'Found {{count}} matches', { count: results.length });
+        toast.success(message);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : t('findReplace.errors.searchFailed', 'Search failed');
@@ -191,7 +229,7 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
     } finally {
       setIsLoading(false);
     }
-  }, [tableId, selectedField, mode, searchText, regexPattern, dictionary, searchParams, t]);
+  }, [tableId, selectedField, mode, searchText, regexPattern, dictionary, searchParams, selectedViewId, viewFilterActive, t]);
 
   // Replace all handler
   const handleReplaceAll = useCallback(async () => {
@@ -229,6 +267,10 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
       if (resultsToReplace.length === 0) {
         toast.info(t('findReplace.allAlreadyReplaced', 'All matching items have already been replaced'));
         return;
+      }
+
+      if (!tableId) {
+        throw new Error('Table ID is required for replacement');
       }
 
       await algorithm.replaceAll(tableId, resultsToReplace);
@@ -277,30 +319,17 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
       // 使用 ref 获取最新的 searchResults，避免依赖变化
       const result = searchResultsRef.current.find(r => r.recordId === recordId && r.fieldId === fieldId);
 
-      console.log('🎯 单次替换 - 查找目标记录:', {
-        recordId,
-        fieldId,
-        找到结果: !!result,
-        result详情: result ? {
-          originalValue: result.originalValue,
-          newValue: result.newValue,
-          replacement: result.replacement,
-          isModified: result.isModified,
-          'newValue类型': typeof result.newValue
-        } : null
-      });
-
       if (!result) {
         throw new Error(t('findReplace.errors.noMatchToReplace', 'No match to replace'));
       }
 
       // 检查是否有匹配的文本和替换内容
       if (!result.matchedText || result.replacement === undefined) {
-        console.error('❌ 单次替换 - 无效的替换条件:', {
-          matchedText: result.matchedText,
-          replacement: result.replacement
-        });
         throw new Error(t('findReplace.errors.noMatchToReplace', 'No match to replace'));
+      }
+
+      if (!tableId) {
+        throw new Error('Table ID is required for replacement');
       }
 
       await algorithm.replaceSingle(tableId, result);
@@ -312,8 +341,8 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
         if (targetIndex === -1) return prev;
 
         const target = prev[targetIndex];
-        // 如果已经是修改状态，不需要更新
-        if (target.isModified) {
+        // 如果找不到目标或者已经是修改状态，不需要更新
+        if (!target || target.isModified) {
           return prev;
         }
 
@@ -341,13 +370,14 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
         return next;
       });
     }
-  }, [mode, t, tableId, originalSearchResults]);
+  }, [mode, t, tableId]);
 
   return {
     // State
     mode,
     selectedField,
     searchParams,
+    dictionary,
     searchResults,
     currentPage,
     pageSize,
@@ -356,18 +386,20 @@ export function useFindReplaceState(): Omit<IFindReplaceState, 'searchStats'> & 
     hasSearched,
     hasReplaced,
     searchStats,
-    replacingRecordIds, // 导出细粒度的加载状态
+    replacingRecordIds,
+    selectedViewId: selectedViewId || '',
+    viewFilterActive,
 
     // Actions
-    setMode,
     setSelectedField,
     setSearchText,
     setReplaceText,
     setRegexPattern,
     setDictionary,
+    setSelectedViewId,
     handleSearch,
     handleReplaceAll,
     handleReplaceSingle,
-    handleModeChange, // 新增的模式切换处理函数
+    handleModeChange,
   };
 }
