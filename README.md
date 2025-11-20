@@ -143,6 +143,42 @@ The plugin reads configuration from URL parameters via `EnvProvider.tsx`:
 - `shareId`, `positionId`, `positionType` - UI positioning
 - `lang`, `theme` - Localization and theme settings
 
+### API Configuration
+
+The plugin supports two deployment modes with automatic authentication handling:
+
+#### 1. Same-Origin Mode (Default)
+- **Use case**: Plugin and Teable are on the same domain
+- **Configuration**: No additional setup required
+- **Authentication**: Browser automatically sends cookies
+- **API URL**: Uses current domain (`${window.location.origin}/api`)
+
+#### 2. Cross-Origin Mode
+- **Use case**: Plugin and Teable are on different domains
+- **Configuration**: Set environment variable `NEXT_PUBLIC_TEABLE_HOST`
+- **Authentication**: Uses bridge.getSelfTempToken() for Bearer token
+- **API URL**: Uses configured host (`${NEXT_PUBLIC_TEABLE_HOST}/api`)
+
+##### Environment Variable Setup
+
+Create a `.env.local` file in the project root:
+
+```bash
+# Cross-Origin Configuration
+NEXT_PUBLIC_TEABLE_HOST=https://teable.yourdomain.com
+```
+
+**Examples:**
+```bash
+# Development: Plugin on localhost:3001, Teable on localhost:3000
+NEXT_PUBLIC_TEABLE_HOST=http://localhost:3000
+
+# Production: Plugin on different subdomain
+NEXT_PUBLIC_TEABLE_HOST=https://teable.yourdomain.com
+```
+
+For detailed configuration examples, see [.env.example](.env.example).
+
 ### Search Modes
 
 The plugin supports three search modes:

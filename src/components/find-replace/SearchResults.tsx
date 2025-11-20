@@ -102,9 +102,10 @@ export function SearchResults({
           {/* Pagination info */}
           {paginationData.totalPages > 1 && (
             <span className="text-muted-foreground">
-              {t('findReplace.pagination', '第 {{current}} 页，共 {{total}} 页', {
+              {t('findReplace.pagination', '第 {{current}} 页，共 {{total}} 页（{{items}} 项）', {
                 current: currentPage,
-                total: paginationData.totalPages
+                total: paginationData.totalPages,
+                items: results.length
               })}
             </span>
           )}
