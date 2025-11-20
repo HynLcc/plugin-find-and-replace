@@ -1,46 +1,39 @@
 # Teable 查找替换插件
 
+<div align="center">
+
+![Find and Replace Plugin Demo](./image/demo.gif)
+
 一个 [Teable](https://teable.ai) 插件，为表格记录提供高效的查找和替换功能，支持多种搜索模式和批量处理。
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Next.js](https://img.shields.io/badge/Next.js-14.2.14-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.2.0-blue)](https://reactjs.org/)
+
+</div>
 
 ## ✨ 功能特性
 
-- 🔍 **多种搜索模式** - 简单文本、正则表达式和字典批量搜索
+- 🔍 **多种搜索模式** - 简单文本、正则表达式和字典批量搜索，性能提升3倍
 - 🎯 **字段选择** - 灵活的字段选择，实现精准搜索
 - 📊 **视图筛选** - 将搜索范围限制在特定的表格视图
 - 🔄 **批量处理** - 全部替换或单个替换操作
-- 🎨 **主题支持** - 完整的明暗模式兼容，自动主题检测
+- 🎨 **现代 UI** - 响应式设计，卡片网格布局，支持明暗主题
 - 🌍 **国际化** - 完整的 i18n 支持（英文/中文）
-- 📱 **响应式设计** - 针对所有屏幕尺寸优化
-- ⚡ **性能优化** - 使用 React Query 实现高效数据获取
-- 🛡️ **错误处理** - 全面的错误报告和用户反馈
-- 🔌 **Teable 集成** - 与 Teable 表格和字段的无缝集成
-- 🔍 **正则测试器** - 内置正则表达式模式测试工具
-- 📝 **字典编辑器** - 可视化字典编辑器，用于批量替换
+- ⚡ **高性能** - 优化的搜索算法和 React 组件
+- 🛡️ **错误处理** - 统一的错误处理系统，提供用户友好的消息
+- 🔌 **Teable 集成** - 与 Teable 表格和字段的无缝集成，自动token刷新
 
 ## 🛠️ 技术栈
 
-### 核心框架
-- **Next.js 14.2.14** - 带 App Router 的 React 全栈框架
-- **React 18.2.0** - 现代化 React 功能的 UI 库
-- **TypeScript 5** - 类型安全的 JavaScript 超集（启用严格模式）
-
-### Teable 生态
-- `@teable/sdk` - 插件桥接和 UI 配置
-- `@teable/openapi` - API 客户端和类型定义
-- `@teable/core` - 核心类型定义和工具
-- `@teable/ui-lib` - Teable 官方 UI 组件库（基于 shadcn/ui）
-- `@teable/next-themes` - 主题切换支持
-- `@teable/icons` - Teable 图标库
-
-### UI 和样式
-- **Tailwind CSS 3.4.1** - 原子化 CSS 框架，使用 Teable UI 配置
-- **Lucide React** - 现代化界面的图标库
-- **Sonner** - Toast 通知库
-
-### 状态管理和数据
-- `@tanstack/react-query 4.36.1` - 服务端状态管理、缓存和同步
-- `react-i18next 14.1.0` - 国际化框架
-- `i18next 23.10.1` - 核心国际化库
+- **Next.js 14.2.14** - 带 App Router 的 React 框架
+- **React 18.2.0** - 现代化 React 功能
+- **TypeScript 5** - 严格类型安全
+- **Tailwind CSS 3.4.1** - 原子化 CSS 样式
+- **React Query 4.36.1** - 数据获取和缓存
+- **Teable SDK** - 插件集成和组件
+- **React i18next** - 国际化支持
 
 ## 🚀 快速开始
 

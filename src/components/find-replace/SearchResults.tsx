@@ -107,7 +107,10 @@ export function SearchResults({
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
             <h2 className="text-base font-semibold text-foreground">
-              {t('findReplace.resultsSummary', '在 {{total}} 条记录中找到 {{count}} 个匹配项', { count: results.length, total: results.length })}
+              {results.length > 0
+                ? (t('findReplace.resultsSimple', '找到 {{count}} 个匹配项', { count: results.length }))
+                : (t('findReplace.noResultsFound', '未找到匹配项'))
+              }
             </h2>
           </div>
           {paginationData.totalPages > 1 && (
@@ -204,15 +207,16 @@ export function SearchResults({
                   <div className="text-xs font-medium text-muted-foreground mb-1">
                     {t('findReplace.newContent', '替换后')}
                   </div>
-                  <div className={`rounded px-2 py-1.5 ${
+                  <div className={`rounded px-2 py-1.5 min-h-[1rem] flex items-center ${
                     (result.replacement !== undefined || result.newValue !== undefined || result.isModified)
                       ? 'bg-muted/50 border border-green-200/50 dark:border-green-800/30'
                       : 'bg-muted/20 border border-dashed border-border/30'
                   }`}>
-                    <p className="text-sm text-foreground leading-snug overflow-hidden" style={{
+                    <p className="text-sm text-foreground leading-snug overflow-hidden w-full" style={{
                       display: '-webkit-box',
                       WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical'
+                      WebkitBoxOrient: 'vertical',
+                      minHeight: '1rem'
                     }}>
                       {(result.replacement !== undefined || result.newValue !== undefined || result.isModified)
                         ? (result.newValue ?? result.replacement ?? t('findReplace.empty', '(空)'))
@@ -356,37 +360,40 @@ export function SearchResults({
 }
 
 export const SearchResultsMemo = memo(SearchResults, (prevProps, nextProps) => {
-  // 自定义比较函数，只在关键props变化时重新渲染
-  // 对于 results 数组，进行浅比较：比较长度和每个元素的引用
-  const resultsEqual = 
-    prevProps.results.length === nextProps.results.length &&
-    prevProps.results.every((prev, index) => {
-      const next = nextProps.results[index];
-      if (!next) return false;
-      return (
-        prev.recordId === next.recordId &&
-        prev.fieldId === next.fieldId &&
-        prev.isModified === next.isModified &&
-        prev.originalValue === next.originalValue &&
-        prev.newValue === next.newValue &&
-        prev.matchedText === next.matchedText &&
-        prev.replacement === next.replacement
-      );
-    });
+  // Fast comparison for expensive props
+  if (
+    prevProps.isLoading !== nextProps.isLoading ||
+    prevProps.hasSearched !== nextProps.hasSearched ||
+    prevProps.results.length !== nextProps.results.length
+  ) {
+    return false;
+  }
 
-  // 比较 replacingRecordIds Set
-  const replacingRecordIdsEqual = 
-    prevProps.replacingRecordIds?.size === nextProps.replacingRecordIds?.size &&
-    (prevProps.replacingRecordIds?.size === 0 || 
-     Array.from(prevProps.replacingRecordIds || []).every(id => 
-       nextProps.replacingRecordIds?.has(id)
-     ));
+  // Compare replacingRecordIds efficiently
+  const prevReplacingSize = prevProps.replacingRecordIds?.size ?? 0;
+  const nextReplacingSize = nextProps.replacingRecordIds?.size ?? 0;
+  if (prevReplacingSize !== nextReplacingSize) {
+    return false;
+  }
 
-  return (
-    resultsEqual &&
-    prevProps.isLoading === nextProps.isLoading &&
-    prevProps.hasSearched === nextProps.hasSearched &&
-    prevProps.onReplaceSingle === nextProps.onReplaceSingle &&
-    replacingRecordIdsEqual
-  );
+  // Quick check for results content equality
+  if (prevReplacingSize === 0 && nextReplacingSize === 0) {
+    return true; // No changes in replacing state
+  }
+
+  // Detailed comparison only when necessary
+  return prevProps.results.every((prev, index) => {
+    const next = nextProps.results[index];
+    if (!next) return false;
+
+    return (
+      prev.recordId === next.recordId &&
+      prev.fieldId === next.fieldId &&
+      prev.isModified === next.isModified &&
+      prev.originalValue === next.originalValue &&
+      prev.newValue === next.newValue &&
+      prev.matchedText === next.matchedText &&
+      prev.replacement === next.replacement
+    );
+  });
 });

@@ -58,12 +58,13 @@ export const useInitApi = () => {
             const timeUntilExpiry = expiresTime.getTime() - now.getTime();
 
             // 只在开发环境或token即将过期时显示详细信息
-            if (process.env.NODE_ENV === 'development' || timeUntilExpiry < 30 * 60 * 1000) {
+            if (process.env.NODE_ENV === 'development') {
               console.log('Token refreshed, expires at:', expiresTime);
               console.log('Time until expiry:', Math.floor(timeUntilExpiry / 1000 / 60), 'minutes');
 
-              if (timeUntilExpiry < 30 * 60 * 1000) {
-                console.warn('Token will expire within 30 minutes');
+              // 因为token有效期只有10分钟，设置2分钟预警
+              if (timeUntilExpiry < 2 * 60 * 1000) {
+                console.warn('Token will expire within 2 minutes');
               }
             }
 

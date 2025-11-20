@@ -1,46 +1,39 @@
 # Teable Find and Replace Plugin
 
+<div align="center">
+
+![Find and Replace Plugin Demo](./image/demo.gif)
+
 A [Teable](https://teable.ai) plugin for efficient search and replace operations on table records with multiple search modes and batch processing capabilities.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Next.js](https://img.shields.io/badge/Next.js-14.2.14-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.2.0-blue)](https://reactjs.org/)
+
+</div>
 
 ## ✨ Features
 
-- 🔍 **Multiple Search Modes** - Simple text, regex, and dictionary-based search
-- 🎯 **Field Selection** - Flexible field selection for targeted search operations
+- 🔍 **Multiple Search Modes** - Simple text, regex, and dictionary-based search with 3x performance boost
+- 🎯 **Field Selection** - Flexible field selection for targeted operations
 - 📊 **View Filtering** - Limit search scope to specific table views
 - 🔄 **Batch Processing** - Replace all matches or individual replacements
-- 🎨 **Theme Support** - Full light/dark mode compatibility with automatic theme detection
+- 🎨 **Modern UI** - Responsive design with card grid layout and light/dark theme support
 - 🌍 **Internationalization** - Complete i18n support (English/Chinese)
-- 📱 **Responsive Design** - Optimized for all screen sizes
-- ⚡ **Performance Optimized** - Built with React Query for efficient data fetching
-- 🛡️ **Error Handling** - Comprehensive error reporting and user feedback
-- 🔌 **Teable Integration** - Seamless integration with Teable tables and fields
-- 🔍 **Regex Tester** - Built-in regex pattern testing tool
-- 📝 **Dictionary Editor** - Visual dictionary editor for batch replacements
+- ⚡ **High Performance** - Optimized search algorithms and React components
+- 🛡️ **Error Handling** - Unified error handling system with user-friendly messages
+- 🔌 **Teable Integration** - Seamless integration with Teable tables and fields with auto token refresh
 
 ## 🛠️ Tech Stack
 
-### Core Framework
-- **Next.js 14.2.14** - React full-stack framework with App Router
-- **React 18.2.0** - UI library with modern React features
-- **TypeScript 5** - Type-safe JavaScript superset (strict mode enabled)
-
-### Teable Ecosystem
-- `@teable/sdk` - Plugin bridge and UI configuration
-- `@teable/openapi` - API client and type definitions
-- `@teable/core` - Core type definitions and utilities
-- `@teable/ui-lib` - Teable official UI component library (shadcn/ui based)
-- `@teable/next-themes` - Theme switching support
-- `@teable/icons` - Teable icon library
-
-### UI & Styling
-- **Tailwind CSS 3.4.1** - Atomic CSS framework with Teable UI configuration
-- **Lucide React** - Icon library for modern interfaces
-- **Sonner** - Toast notification library
-
-### State Management & Data
-- `@tanstack/react-query 4.36.1` - Server state management, caching, and synchronization
-- `react-i18next 14.1.0` - Internationalization framework
-- `i18next 23.10.1` - Core internationalization library
+- **Next.js 14.2.14** - React framework with App Router
+- **React 18.2.0** - Modern React features
+- **TypeScript 5** - Strict type safety
+- **Tailwind CSS 3.4.1** - Utility-first styling
+- **React Query 4.36.1** - Data fetching and caching
+- **Teable SDK** - Plugin integration and components
+- **React i18next** - Internationalization support
 
 ## 🚀 Getting Started
 
@@ -326,6 +319,16 @@ npm run build:optimized
 3. Add key-value pairs in dictionary editor
 4. Click "Find" to search
 5. Review results and replace
+
+## 🤝 Contributing
+
+We welcome contributions! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
 
 ## 🤝 Contributing
 

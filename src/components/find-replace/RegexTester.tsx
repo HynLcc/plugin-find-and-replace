@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@teable/ui-lib';
 import { Label } from '@teable/ui-lib';
 import { Badge } from '@teable/ui-lib';
 import { Button } from '@teable/ui-lib';
-import { Check, X, Play, Copy } from 'lucide-react';
+import { Check, X, Play } from 'lucide-react';
 
 interface RegexTesterProps {
   pattern: string;
@@ -103,12 +103,7 @@ export function RegexTester({
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      // 可以添加复制成功的提示
-    });
-  };
-
+  
   const useCommonPattern = (commonPattern: string) => {
     onPatternChange(commonPattern);
   };
@@ -208,15 +203,6 @@ export function RegexTester({
                 <div className="p-2 bg-muted rounded text-xs">
                   {testResult.replaced}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => copyToClipboard(testResult.replaced)}
-                  className="text-xs"
-                >
-                  <Copy className="w-3 h-3 mr-1" />
-                  {t('findReplace.regularExpressionCopyResult', '复制结果')}
-                </Button>
               </div>
             )}
 

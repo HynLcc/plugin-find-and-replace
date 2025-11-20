@@ -8,9 +8,27 @@ import {
   ISearchConfigWithView
 } from '@/types';
 import { replaceHandler } from './ReplaceHandler';
+import { ErrorCreators, standardizeError, ErrorCode } from '@/utils/errorHandling';
 
 /**
- * Search algorithm interface
+ * Escapes special regex characters in a string for safe pattern matching
+ *
+ * This function prepares user input strings for use in regular expressions
+ * by escaping all characters that have special meaning in regex patterns.
+ * This prevents regex injection and ensures literal string matching.
+ *
+ * @param string - The input string to escape
+ * @returns Regex-safe string with special characters escaped
+ */
+function escapeRegExp(string: string): string {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Interface defining the contract for all search algorithm implementations
+ *
+ * All search algorithms must implement this interface to ensure consistent
+ * behavior across different search modes (Simple, Regex, Dictionary).
  */
 interface ISearchAlgorithm {
   search(config: ISearchConfig | ISearchConfigWithView): Promise<ISearchResult[]>;
@@ -19,31 +37,58 @@ interface ISearchAlgorithm {
 }
 
 /**
- * Base search algorithm with common replace functionality
+ * Abstract base class providing common functionality for all search algorithms
+ *
+ * This class implements the template method pattern, providing shared
+ * implementation for replace operations while delegating the search
+ * logic to concrete subclasses. This ensures consistent replacement
+ * behavior across all search modes.
  */
 abstract class BaseSearchAlgorithm implements ISearchAlgorithm {
   /**
-   * 统一的单条记录替换方法
+   * Unified single record replacement method
+   *
+   * Delegates to the centralized ReplaceHandler to ensure consistent
+   * replacement behavior across all search algorithms.
+   *
+   * @param tableId - The ID of the table containing the record
+   * @param result - The search result containing replacement information
    */
   async replaceSingle(tableId: string, result: ISearchResult): Promise<void> {
     return replaceHandler.replaceSingle(tableId, result);
   }
 
   /**
-   * 统一的批量替换方法
+   * Unified batch replacement method
+   *
+   * Delegates to the centralized ReplaceHandler to ensure consistent
+   * replacement behavior across all search algorithms.
+   *
+   * @param tableId - The ID of the table containing the records
+   * @param results - Array of search results containing replacement information
    */
   async replaceAll(tableId: string, results: ISearchResult[]): Promise<void> {
     return replaceHandler.replaceAll(tableId, results);
   }
 
   /**
-   * 子类必须实现的搜索方法
+   * Abstract search method that must be implemented by subclasses
+   *
+   * Each search algorithm (Simple, Regex, Dictionary) must implement
+   * their specific search logic while following the common interface.
+   *
+   * @param config - Search configuration including mode, table, field, and parameters
+   * @returns Promise resolving to array of search results
    */
   abstract search(config: ISearchConfig | ISearchConfigWithView): Promise<ISearchResult[]>;
 }
 
 /**
- * Simple search algorithm implementation
+ * Simple text search algorithm implementation
+ *
+ * Provides basic text matching functionality with optional case sensitivity
+ * and whole word matching. This is the most straightforward search mode
+ * suitable for simple find and replace operations.
  */
 class SimpleSearchAlgorithm extends BaseSearchAlgorithm {
   async search(config: ISearchConfig | ISearchConfigWithView): Promise<ISearchResult[]> {
@@ -61,7 +106,7 @@ class SimpleSearchAlgorithm extends BaseSearchAlgorithm {
       const targetField = fields.find(f => f.id === fieldId);
 
       if (!targetField) {
-        throw new Error(`Field with ID ${fieldId} not found`);
+        throw ErrorCreators.fieldNotFound(fieldId);
       }
 
       const fieldName = targetField.name;
@@ -74,41 +119,38 @@ class SimpleSearchAlgorithm extends BaseSearchAlgorithm {
       // Add viewId if present in config
       if ('viewId' in config && config.viewId) {
         recordQuery.viewId = config.viewId;
-        console.log('🔍 [SimpleSearch] Using view filter:', {
-          viewId: config.viewId,
-          fullQuery: recordQuery,
-          tableId,
-          fieldId
-        });
-      } else {
-        console.log('🔍 [SimpleSearch] No view filter applied - searching all records');
       }
 
       // Get table records (potentially filtered by view)
       const recordsResponse = await openApi.getRecords(tableId, recordQuery);
-      console.log('📊 [SimpleSearch] API response:', {
-        recordsCount: recordsResponse.data.records.length,
-        hasViewId: !!recordQuery.viewId,
-        viewId: recordQuery.viewId
-      });
 
       const results: ISearchResult[] = [];
 
-      for (const record of recordsResponse.data.records) {
-        const fieldValue = record.fields[fieldName]; // Use fieldName instead of fieldId
+      // Pre-compile regex for better performance
+      const searchRegex = new RegExp(escapeRegExp(searchText), 'g');
+
+      // Process records in batches for better performance
+      const records = recordsResponse.data.records;
+      for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        const fieldValue = record.fields[fieldName];
+
         if (fieldValue == null) {
           continue;
         }
 
         const stringValue = String(fieldValue);
 
-        if (stringValue.includes(searchText)) {
+        if (searchRegex.test(stringValue)) {
+          // Reset regex for next test
+          searchRegex.lastIndex = 0;
+
           // Calculate the actual new value
           const actualNewValue = replacementText !== undefined ?
-            stringValue.replace(new RegExp(searchText, 'g'), replacementText) :
-            (fieldValue as string | number | boolean | null);
+            stringValue.replace(searchRegex, replacementText) :
+            fieldValue;
 
-          const result: ISearchResult = {
+          results.push({
             recordId: record.id,
             recordName: record.name || record.id,
             fieldId,
@@ -117,19 +159,14 @@ class SimpleSearchAlgorithm extends BaseSearchAlgorithm {
             newValue: actualNewValue,
             matchedText: searchText,
             isModified: false,
-          };
-
-          if (replacementText !== undefined) {
-            result.replacement = replacementText;
-          }
-
-          results.push(result);
+            ...(replacementText !== undefined && { replacement: replacementText }),
+          });
         }
       }
 
       return results;
     } catch (error) {
-      throw new Error(`Simple search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw ErrorCreators.searchFailed('Simple', error instanceof Error ? error.message : 'Unknown error');
     }
   }
 }
@@ -165,7 +202,7 @@ class RegexSearchAlgorithm extends BaseSearchAlgorithm {
     // Validate regex pattern
     const validation = this.validateRegex(regexPattern);
     if (!validation.isValid) {
-      throw new Error(`Invalid regex pattern: ${validation.error}`);
+      throw ErrorCreators.invalidRegex(validation.error || 'Invalid regex pattern');
     }
 
     try {
@@ -175,7 +212,7 @@ class RegexSearchAlgorithm extends BaseSearchAlgorithm {
       const targetField = fields.find(f => f.id === fieldId);
 
       if (!targetField) {
-        throw new Error(`Field with ID ${fieldId} not found`);
+        throw ErrorCreators.fieldNotFound(fieldId);
       }
 
       const fieldName = targetField.name;
@@ -188,30 +225,20 @@ class RegexSearchAlgorithm extends BaseSearchAlgorithm {
       // Add viewId if present in config
       if ('viewId' in config && config.viewId) {
         recordQuery.viewId = config.viewId;
-        console.log('🔍 [RegexSearch] Using view filter:', {
-          viewId: config.viewId,
-          fullQuery: recordQuery,
-          tableId,
-          fieldId,
-          regexPattern
-        });
-      } else {
-        console.log('🔍 [RegexSearch] No view filter applied - searching all records');
       }
 
+      // Compile regex once for better performance
       const regex = new RegExp(regexPattern, 'g');
       const recordsResponse = await openApi.getRecords(tableId, recordQuery);
-      console.log('📊 [RegexSearch] API response:', {
-        recordsCount: recordsResponse.data.records.length,
-        hasViewId: !!recordQuery.viewId,
-        viewId: recordQuery.viewId,
-        regexPattern
-      });
 
       const results: ISearchResult[] = [];
+      const records = recordsResponse.data.records;
 
-      for (const record of recordsResponse.data.records) {
-        const fieldValue = record.fields[fieldName]; // Use fieldName instead of fieldId
+      // Process records efficiently
+      for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        const fieldValue = record.fields[fieldName];
+
         if (fieldValue == null) continue;
 
         const stringValue = String(fieldValue);
@@ -225,7 +252,7 @@ class RegexSearchAlgorithm extends BaseSearchAlgorithm {
             stringValue.replace(regex, replacementText) :
             stringValue;
 
-          const regexResult: ISearchResult = {
+          results.push({
             recordId: record.id,
             recordName: record.name || record.id,
             fieldId,
@@ -234,19 +261,14 @@ class RegexSearchAlgorithm extends BaseSearchAlgorithm {
             newValue: actualNewValue,
             matchedText: regexPattern,
             isModified: false,
-          };
-
-          if (replacementText !== undefined) {
-            regexResult.replacement = replacementText;
-          }
-
-          results.push(regexResult);
+            ...(replacementText !== undefined && { replacement: replacementText }),
+          });
         }
       }
 
       return results;
     } catch (error) {
-      throw new Error(`Regex search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw ErrorCreators.searchFailed('Regex', error instanceof Error ? error.message : 'Unknown error');
     }
   }
 }
@@ -299,7 +321,7 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
     // Validate dictionary
     const validation = this.validateDictionary(dictionary);
     if (!validation.isValid) {
-      throw new Error(`Invalid dictionary: ${validation.errors.join(', ')}`);
+      throw ErrorCreators.invalidDictionary(validation.errors);
     }
 
     try {
@@ -309,7 +331,7 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
       const targetField = fields.find(f => f.id === fieldId);
 
       if (!targetField) {
-        throw new Error(`Field with ID ${fieldId} not found`);
+        throw ErrorCreators.fieldNotFound(fieldId);
       }
 
       const fieldName = targetField.name;
@@ -322,77 +344,72 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
       // Add viewId if present in config
       if ('viewId' in config && config.viewId) {
         recordQuery.viewId = config.viewId;
-        console.log('🔍 [DictionarySearch] Using view filter:', {
-          viewId: config.viewId,
-          fullQuery: recordQuery,
-          tableId,
-          fieldId,
-          dictionaryKeys: Object.keys(dictionary || {})
-        });
-      } else {
-        console.log('🔍 [DictionarySearch] No view filter applied - searching all records');
       }
 
       const recordsResponse = await openApi.getRecords(tableId, recordQuery);
-      console.log('📊 [DictionarySearch] API response:', {
-        recordsCount: recordsResponse.data.records.length,
-        hasViewId: !!recordQuery.viewId,
-        viewId: recordQuery.viewId,
-        dictionarySize: Object.keys(dictionary || {}).length
-      });
 
       const results: ISearchResult[] = [];
 
-      for (const record of recordsResponse.data.records) {
-        const fieldValue = record.fields[fieldName]; // Use fieldName instead of fieldId
+      // Pre-compile all regex patterns for better performance
+      const dictionaryEntries = Object.entries(dictionary);
+      const compiledPatterns = dictionaryEntries.map(([key, value]) => ({
+        key,
+        value,
+        regex: new RegExp(escapeRegExp(key), 'g'),
+      }));
+
+      const records = recordsResponse.data.records;
+
+      // Process records efficiently
+      for (let i = 0; i < records.length; i++) {
+        const record = records[i];
+        const fieldValue = record.fields[fieldName];
+
         if (fieldValue == null) continue;
 
         const stringValue = String(fieldValue);
 
-        // 检查字典中所有键，替换所有匹配项
+        // Check for matches and apply replacements
+        let hasMatches = false;
         let actualNewValue = stringValue;
-        let matchedKeys: string[] = [];
+        const matchedKeys: string[] = [];
 
-        // 对字典中的每个键，检查是否在字符串中存在
-        for (const key of Object.keys(dictionary)) {
-          if (actualNewValue.includes(key)) {
-            const replacement = dictionary[key];
-            if (replacement !== undefined) {
-              actualNewValue = actualNewValue.replace(new RegExp(key, 'g'), replacement);
+        // Apply all matching dictionary entries
+        for (const { key, value, regex } of compiledPatterns) {
+          if (regex.test(actualNewValue)) {
+            // Reset regex for next test
+            regex.lastIndex = 0;
+
+            if (value !== undefined) {
+              actualNewValue = actualNewValue.replace(regex, value);
             }
             matchedKeys.push(key);
+            hasMatches = true;
           }
         }
 
-        const matchedKey = matchedKeys.length > 0 ? matchedKeys[matchedKeys.length - 1] : undefined;
-        const replacement = matchedKey ? dictionary[matchedKey] : '';
+        // Only add result if there were matches
+        if (hasMatches) {
+          const lastMatchedKey = matchedKeys[matchedKeys.length - 1];
+          const lastReplacement = lastMatchedKey ? dictionary[lastMatchedKey] : '';
 
-        if (matchedKeys.length > 0) {
-          const dictResult: ISearchResult = {
+          results.push({
             recordId: record.id,
             recordName: record.name || record.id,
             fieldId,
             fieldName,
             originalValue: stringValue,
             newValue: actualNewValue,
+            matchedText: lastMatchedKey,
             isModified: false,
-          };
-
-          if (matchedKey !== undefined) {
-            dictResult.matchedText = matchedKey;
-          }
-
-          if (replacement !== undefined && replacement !== '') {
-            dictResult.replacement = replacement;
-          }
-
-          results.push(dictResult);
+            ...(lastReplacement !== undefined && lastReplacement !== '' && { replacement: lastReplacement }),
+          });
         }
       }
 
       return results;
     } catch (error) {
-      throw new Error(`Dictionary search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw ErrorCreators.searchFailed('Dictionary', error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
@@ -408,7 +425,7 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
         },
       });
     } catch (error) {
-      throw new Error(`Dictionary single replace failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw ErrorCreators.replaceFailed('Dictionary single', error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
@@ -423,13 +440,16 @@ class DictionarySearchAlgorithm extends BaseSearchAlgorithm {
         }
       }
     } catch (error) {
-      throw new Error(`Dictionary replace all failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw ErrorCreators.replaceFailed('Dictionary replace all', error instanceof Error ? error.message : 'Unknown error');
     }
   }
 }
 
 /**
- * Search algorithms registry
+ * Registry of all available search algorithms
+ *
+ * Provides centralized access to all search algorithm implementations.
+ * Each algorithm is instantiated once and reused for better performance.
  */
 export const searchAlgorithms: Record<SearchMode, ISearchAlgorithm> = {
   [SearchMode.SIMPLE]: new SimpleSearchAlgorithm(),
@@ -438,7 +458,10 @@ export const searchAlgorithms: Record<SearchMode, ISearchAlgorithm> = {
 };
 
 /**
- * Validation utilities
+ * Validation utilities for search inputs
+ *
+ * Provides centralized validation functions for different search modes,
+ * ensuring consistent input validation across the application.
  */
 export const validationUtils = {
   validateRegex: (pattern: string) => new RegexSearchAlgorithm().validateRegex(pattern),

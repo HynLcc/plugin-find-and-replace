@@ -13,13 +13,23 @@ import {
   ISearchConfigWithView
 } from '@/types';
 import { searchAlgorithms } from '@/utils/findReplace/searchAlgorithms';
+import { standardizeError, ErrorCode, ErrorCreators, createAppError } from '@/utils/errorHandling';
 
 /**
- * Find and Replace state management hook
+ * Comprehensive state management hook for Find and Replace functionality
  *
- * This hook manages all the state for the find and replace functionality,
- * including search modes, parameters, results, and UI state.
- * Now includes view filtering support.
+ * This hook encapsulates all complex state logic for the find and replace feature,
+ * providing a clean interface for components to interact with search operations,
+ * mode switching, result management, and view filtering. It handles:
+ *
+ * - Search mode management (Simple, Regex, Dictionary)
+ * - Search parameter state and validation
+ * - Search results and pagination
+ * - Loading and error states
+ * - View-based filtering support
+ * - Individual and batch replace operations
+ *
+ * @returns Object containing state values and handler functions
  */
 export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchStats'> & {
   handleSearch: (viewName?: string) => Promise<void>;
@@ -68,32 +78,52 @@ export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchSt
     searchResultsRef.current = searchResults;
   }, [searchResults]);
 
-  // Search parameter states for different modes
+  // Consolidated search parameter state with better typing
   const [searchText, setSearchTextState] = useState('');
-  const [, setReplaceTextState] = useState('');
+  const [replaceText, setReplaceTextState] = useState('');
   const [regexPattern, setRegexPatternState] = useState('');
   const [dictionary, setDictionaryState] = useState<Record<string, string>>({});
 
-  // Update search parameters when individual states change
+  // Centralized search parameter management
+  const updateSearchParams = useCallback(() => {
+    const newParams: ISearchParams = {};
+
+    if (mode === SearchMode.SIMPLE) {
+      newParams.searchText = searchText;
+      newParams.replacementText = replaceText;
+    } else if (mode === SearchMode.REGEX) {
+      newParams.regexPattern = regexPattern;
+      newParams.replacementText = replaceText;
+    } else if (mode === SearchMode.DICTIONARY) {
+      newParams.dictionary = dictionary;
+      newParams.replacementText = replaceText;
+    }
+
+    setSearchParams(newParams);
+  }, [mode, searchText, replaceText, regexPattern, dictionary]);
+
+  // Update search params when any search-related state changes
+  useEffect(() => {
+    updateSearchParams();
+  }, [mode, searchText, replaceText, regexPattern, dictionary, updateSearchParams]);
+
+  // Simplified setter functions
   const setSearchText = useCallback((text: string) => {
     setSearchTextState(text);
-    setSearchParams(prev => ({ ...prev, searchText: text }));
   }, []);
 
   const setReplaceText = useCallback((text: string) => {
     setReplaceTextState(text);
-    setSearchParams(prev => ({ ...prev, replacementText: text }));
   }, []);
 
   const setRegexPattern = useCallback((pattern: string) => {
     setRegexPatternState(pattern);
-    setSearchParams(prev => ({ ...prev, regexPattern: pattern }));
   }, []);
 
   const setDictionary = useCallback((dict: Record<string, string>) => {
     setDictionaryState(dict);
-    setSearchParams(prev => ({ ...prev, dictionary: dict }));
-  }, []);
+    updateSearchParams();
+  }, [updateSearchParams]);
 
   const setSelectedViewId = useCallback((viewId: string) => {
     setSelectedViewIdState(viewId);
@@ -107,9 +137,9 @@ export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchSt
     setViewFilterActive(viewId !== undefined);
   }, []);
 
-  // 自定义 setMode 函数，在模式切换时清空相关输入
+  // Simplified mode change handler
   const handleModeChange = useCallback((newMode: SearchMode) => {
-    // 清空所有搜索状态和结果
+    // Clear search state but preserve view selection
     setSearchText('');
     setReplaceText('');
     setRegexPattern('');
@@ -119,10 +149,11 @@ export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchSt
     setHasSearched(false);
     setHasReplaced(false);
     setError(null);
-
-    // 设置新模式
+    // Don't reset view filtering when changing modes - preserve user's view selection
+    // setViewFilterActive(false);
+    // setSelectedViewIdState(undefined);
     setMode(newMode);
-    setSearchParams({}); // 清空搜索参数
+    setSearchParams({});
   }, [setSearchText, setReplaceText, setRegexPattern, setDictionary]);
 
   // Calculate search statistics - 使用 useMemo 优化计算
@@ -136,7 +167,7 @@ export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchSt
     };
   }, [searchResults]);
 
-  // Search handler
+  // Search handler with simplified logic
   const handleSearch = useCallback(async (viewName?: string) => {
     if (!tableId || !selectedField) {
       toast.error(t('findReplace.errors.noTableOrField', 'Please select a field to search'));
@@ -151,85 +182,90 @@ export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchSt
     try {
       const algorithm = searchAlgorithms[mode];
       if (!algorithm) {
-        throw new Error(`Search algorithm not found for mode: ${mode}`);
+        throw ErrorCreators.algorithmNotFound(mode);
       }
 
       // Validate inputs based on mode
-      if (mode === SearchMode.SIMPLE && !searchText) {
-        throw new Error(t('findReplace.errors.searchTextRequired', 'Search text is required'));
+      const validation = validateSearchInputs(mode, searchText, regexPattern, dictionary, t);
+      if (!validation.valid) {
+        throw createAppError(
+          validation.error?.includes('searchText') ? ErrorCode.SEARCH_TEXT_REQUIRED :
+          validation.error?.includes('regexPattern') ? ErrorCode.REGEX_PATTERN_REQUIRED :
+          validation.error?.includes('dictionary') ? ErrorCode.DICTIONARY_REQUIRED :
+          ErrorCode.UNKNOWN_ERROR,
+          validation.error || 'Validation failed'
+        );
       }
 
-      if (mode === SearchMode.REGEX && !regexPattern) {
-        throw new Error(t('findReplace.errors.regularExpressionPatternRequired', 'Regular expression pattern is required'));
-      }
-
-      if (mode === SearchMode.DICTIONARY && Object.keys(dictionary || {}).length === 0) {
-        throw new Error(t('findReplace.errors.dictionaryRequired', 'Dictionary is required'));
-      }
-
-      // 确保replacementText总是被设置，即使为空字符串
-      const searchParamsWithReplacement = {
-        ...searchParams,
-        replacementText: searchParams.replacementText ?? '',
-      };
-
-      const searchConfigBase: Omit<ISearchConfigWithView, 'viewId'> = {
-        mode,
-        tableId,
-        fieldId: selectedField,
-        params: searchParamsWithReplacement,
-      };
-
-      // 只有当 finalViewId 存在时才添加 viewId 属性
-      const finalViewId = viewFilterActive && selectedViewId ? selectedViewId : undefined;
-      const searchConfig: ISearchConfigWithView = finalViewId
-        ? { ...searchConfigBase, viewId: finalViewId }
-        : searchConfigBase;
-
-      console.log('🔧 [useFindReplaceState] Building search config:', {
-        mode,
-        tableId,
-        fieldId: selectedField,
-        viewFilterActive,
-        selectedViewId,
-        selectedViewIdType: typeof selectedViewId,
-        finalViewId,
-        finalViewIdType: typeof finalViewId,
-        searchParamsKeys: Object.keys(searchParamsWithReplacement)
-      });
-
-      console.log('🔧 [useFindReplaceState] Final search config:', { searchConfig });
+      // Build search configuration
+      const searchConfig = buildSearchConfig(mode, tableId, selectedField, searchParams, viewFilterActive, selectedViewId);
 
       const results = await algorithm.search(searchConfig);
-
       setSearchResults(results);
-      // 保存原始搜索结果快照，用于全部替换时基于原始值计算
       setOriginalSearchResults(results.map(r => ({ ...r })));
 
-      if (results.length === 0) {
-        const message = viewFilterActive && selectedViewId && viewName
-          ? t('findReplace.noResultsInView', '在视图 "{{viewName}}" 中未找到匹配项', {
-              viewName: viewName
-            })
-          : t('findReplace.noResults', 'No matches found');
-        toast.info(message);
-      } else {
-        const message = viewFilterActive && selectedViewId && viewName
-          ? t('findReplace.resultsFoundInView', '在视图 "{{viewName}}" 中找到 {{count}} 个匹配项', {
-              count: results.length,
-              viewName: viewName
-            })
-          : t('findReplace.resultsFound', 'Found {{count}} matches', { count: results.length });
-        toast.success(message);
-      }
+      // Show appropriate message
+      showSearchResultsMessage(results.length, Boolean(viewFilterActive && selectedViewId), viewName, t);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : t('findReplace.errors.searchFailed', 'Search failed');
+      const standardError = standardizeError(err, t('findReplace.errors.searchFailed', 'Search failed'));
+      const errorMessage = standardError.message;
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
   }, [tableId, selectedField, mode, searchText, regexPattern, dictionary, searchParams, selectedViewId, viewFilterActive, t]);
+
+  // Helper function for input validation
+  const validateSearchInputs = useCallback((currentMode: SearchMode, currentSearchText: string, currentRegexPattern: string, currentDictionary: Record<string, string> | undefined, translationFunc: any) => {
+    switch (currentMode) {
+      case SearchMode.SIMPLE:
+        return { valid: !!currentSearchText, error: !currentSearchText ? translationFunc('findReplace.errors.searchTextRequired', 'Search text is required') : '' };
+      case SearchMode.REGEX:
+        return { valid: !!currentRegexPattern, error: !currentRegexPattern ? translationFunc('findReplace.errors.regularExpressionPatternRequired', 'Regular expression pattern is required') : '' };
+      case SearchMode.DICTIONARY:
+        const hasDictionary = currentDictionary && Object.keys(currentDictionary).length > 0;
+        return { valid: hasDictionary, error: !hasDictionary ? translationFunc('findReplace.errors.dictionaryRequired', 'Dictionary is required') : '' };
+      default:
+        return { valid: true, error: '' };
+    }
+  }, []);
+
+  // Helper function to build search config
+  const buildSearchConfig = useCallback((currentMode: SearchMode, currentTableId: string, currentFieldId: string, currentSearchParams: ISearchParams, currentViewFilterActive: boolean, currentSelectedViewId: string | undefined): ISearchConfigWithView => {
+    const searchParamsWithReplacement = {
+      ...currentSearchParams,
+      replacementText: currentSearchParams.replacementText ?? '',
+    };
+
+    const searchConfigBase: Omit<ISearchConfigWithView, 'viewId'> = {
+      mode: currentMode,
+      tableId: currentTableId,
+      fieldId: currentFieldId,
+      params: searchParamsWithReplacement,
+    };
+
+    const finalViewId = currentViewFilterActive && currentSelectedViewId ? currentSelectedViewId : undefined;
+
+    return finalViewId
+      ? { ...searchConfigBase, viewId: finalViewId }
+      : searchConfigBase;
+  }, []);
+
+  // Helper function to show search results message
+  const showSearchResultsMessage = useCallback((resultCount: number, hasViewFilter: boolean, currentViewName: string | undefined, translationFunc: any) => {
+    if (resultCount === 0) {
+      const message = hasViewFilter && currentViewName
+        ? translationFunc('findReplace.noResultsInView', '在视图 "{{viewName}}" 中未找到匹配项', { viewName: currentViewName })
+        : translationFunc('findReplace.noResults', 'No matches found');
+      toast.info(message);
+    } else {
+      const message = hasViewFilter && currentViewName
+        ? translationFunc('findReplace.resultsFoundInView', '在视图 "{{viewName}}" 中找到 {{count}} 个匹配项', { count: resultCount, viewName: currentViewName })
+        : translationFunc('findReplace.resultsFound', 'Found {{count}} matches', { count: resultCount });
+      toast.success(message);
+    }
+  }, []);
 
   // Replace all handler
   const handleReplaceAll = useCallback(async () => {
@@ -243,7 +279,7 @@ export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchSt
     try {
       const algorithm = searchAlgorithms[mode];
       if (!algorithm) {
-        throw new Error(`Search algorithm not found for mode: ${mode}`);
+        throw ErrorCreators.algorithmNotFound(mode);
       }
 
       // 只处理未替换的记录，基于原始搜索结果计算
@@ -295,7 +331,8 @@ export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchSt
 
       toast.success(t('findReplace.replaceAllSuccess', 'Replaced {{count}} items', { count: resultsToReplace.length }));
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : t('findReplace.errors.replaceAllFailed', 'Replace all failed');
+      const standardError = standardizeError(err, t('findReplace.errors.replaceAllFailed', 'Replace all failed'));
+      const errorMessage = standardError.message;
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -313,7 +350,7 @@ export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchSt
     try {
       const algorithm = searchAlgorithms[mode];
       if (!algorithm) {
-        throw new Error(`Search algorithm not found for mode: ${mode}`);
+        throw ErrorCreators.algorithmNotFound(mode);
       }
 
       // 使用 ref 获取最新的 searchResults，避免依赖变化
@@ -360,7 +397,8 @@ export function useFindReplaceState(): Omit<IFindReplaceStateWithView, 'searchSt
 
       toast.success(t('findReplace.replaceSuccess', 'Replaced successfully'));
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : t('findReplace.errors.replaceFailed', 'Replace failed');
+      const standardError = standardizeError(err, t('findReplace.errors.replaceFailed', 'Replace failed'));
+      const errorMessage = standardError.message;
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {

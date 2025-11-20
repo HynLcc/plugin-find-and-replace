@@ -159,6 +159,33 @@ export enum SearchMode {
 }
 
 /**
+ * 搜索验证结果接口
+ */
+export interface ISearchValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+/**
+ * 编译后的字典模式接口
+ */
+export interface ICompiledDictionaryPattern {
+  key: string;
+  value: string;
+  regex: RegExp;
+}
+
+/**
+ * 搜索算法执行上下文接口
+ */
+export interface ISearchContext {
+  tableId: string;
+  fieldId: string;
+  fieldName: string;
+  viewId?: string;
+}
+
+/**
  * 搜索参数接口
  */
 export interface ISearchParams {

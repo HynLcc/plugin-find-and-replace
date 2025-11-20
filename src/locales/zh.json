@@ -103,6 +103,7 @@
     "searching": "搜索中...",
     "searchResults": "搜索结果",
     "resultsSummary": "在 {{total}} 条记录中找到 {{count}} 个匹配项",
+    "resultsSimple": "找到 {{count}} 个匹配项",
     "pagination": "第 {{current}} 页，共 {{total}} 页（{{items}} 项）",
     "previous": "上一页",
     "next": "下一页",

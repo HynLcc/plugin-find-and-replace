@@ -102,6 +102,7 @@
     "searching": "Searching...",
     "searchResults": "Search Results",
     "resultsSummary": "Found {{count}} matches in {{total}} records",
+    "resultsSimple": "Found {{count}} matches",
     "pagination": "Page {{current}} of {{total}} ({{items}} items)",
     "previous": "Previous",
     "next": "Next",

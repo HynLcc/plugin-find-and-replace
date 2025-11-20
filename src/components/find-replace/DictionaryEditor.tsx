@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@teable/ui-lib';
 import { Input } from '@teable/ui-lib';
@@ -11,7 +11,7 @@ interface DictionaryItem {
   id: string;
   key: string;
   value: string;
-  isEditing?: boolean;
+  isEditing: boolean;
   editKey?: string;
   editValue?: string;
 }
@@ -21,13 +21,28 @@ interface DictionaryEditorProps {
   onChange: (dictionary: Record<string, string>) => void;
 }
 
-export function DictionaryEditor({
+// Helper functions extracted for better performance
+const parseEscapedString = (input: string): string => {
+  try {
+    return JSON.parse(`"${input}"`);
+  } catch {
+    return input;
+  }
+};
+
+const escapeToJSON = (str: string): string => {
+    return JSON.stringify(str).slice(1, -1);
+};
+
+// DictionaryEditor component with performance optimizations
+function DictionaryEditorInner({
   dictionary,
   onChange
 }: DictionaryEditorProps) {
   const { t } = useTranslation('common');
 
-  const [items, setItems] = useState<DictionaryItem[]>(() => {
+  // State for managing dictionary items with proper IDs
+  const [items, setItems] = useState(() => {
     return Object.entries(dictionary || {}).map(([key, value]) => ({
       id: Math.random().toString(36).substr(2, 9),
       key,
@@ -36,21 +51,20 @@ export function DictionaryEditor({
     }));
   });
 
+  // Sync items with dictionary prop changes
+  useEffect(() => {
+    setItems(Object.entries(dictionary || {}).map(([key, value]) => ({
+      id: Math.random().toString(36).substr(2, 9),
+      key,
+      value,
+      isEditing: false
+    })));
+  }, [dictionary]);
+
   const [newItem, setNewItem] = useState({ key: '', value: '' });
   const [editingValues, setEditingValues] = useState<Record<string, { key: string; value: string }>>({});
 
-  const parseEscapedString = useCallback((input: string): string => {
-    try {
-      return JSON.parse(`"${input}"`);
-    } catch {
-      return input;
-    }
-  }, []);
-
-  const escapeToJSON = useCallback((str: string): string => {
-    return JSON.stringify(str).slice(1, -1);
-  }, []);
-
+  // Optimized change notification
   const notifyChange = useCallback((newItems: DictionaryItem[]) => {
     const newDictionary: Record<string, string> = {};
     newItems.forEach(item => {
@@ -302,19 +316,43 @@ export function DictionaryEditor({
   );
 }
 
-export const DictionaryEditorMemo = memo(DictionaryEditor, (prevProps, nextProps) => {
-  const prevKeys = Object.keys(prevProps.dictionary || {});
-  const nextKeys = Object.keys(nextProps.dictionary || {});
+export const DictionaryEditorMemo = memo(DictionaryEditorInner, (prevProps, nextProps) => {
+  // Fast comparison for expensive props
+  if (prevProps.onChange !== nextProps.onChange) {
+    return false;
+  }
+
+  const prevDict = prevProps.dictionary || {};
+  const nextDict = nextProps.dictionary || {};
+
+  const prevKeys = Object.keys(prevDict);
+  const nextKeys = Object.keys(nextDict);
 
   if (prevKeys.length !== nextKeys.length) {
     return false;
   }
 
-  for (const key of prevKeys) {
-    if (prevProps.dictionary[key] !== nextProps.dictionary[key]) {
+  // Quick Set-based comparison for performance
+  const prevKeySet = new Set(prevKeys);
+  const nextKeySet = new Set(nextKeys);
+
+  if (prevKeySet.size !== nextKeySet.size) {
+    return false;
+  }
+
+  // Check if all keys are the same
+  for (const key of prevKeySet) {
+    if (!nextKeySet.has(key)) {
       return false;
     }
   }
 
-  return prevProps.onChange === nextProps.onChange;
+  // Check if all values are the same
+  for (const key of prevKeys) {
+    if (prevDict[key] !== nextDict[key]) {
+      return false;
+    }
+  }
+
+  return true;
 });
