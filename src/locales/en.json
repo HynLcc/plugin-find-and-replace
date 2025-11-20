@@ -6,7 +6,7 @@
     "selectMode": "Search Mode",
     "selectModePlaceholder": "Select a search mode",
     "modes": {
-      "simple": "Simple",
+      "simple": "Text",
       "simpleDescription": "Basic text search and replace",
       "regex": "Regex",
       "regexDescription": "Regular expression search and replace",
@@ -146,7 +146,16 @@
     "viewRequired": "View Required",
     "viewRequiredMessage": "Please select a view above to narrow your search scope before proceeding",
     "resultsFoundInView": "Found {{count}} matches in view \"{{viewName}}\"",
-    "noResultsInView": "No matches found in view \"{{viewName}}\""
+    "noResultsInView": "No matches found in view \"{{viewName}}\"",
+    "searchSuggestions": "Try adjusting search conditions or check spelling",
+    "allResults": "All Results",
+    "total": "Total",
+    "itemNumber": "Item {{number}}",
+    "originalContent": "Original Content",
+    "newContent": "New Content",
+    "empty": "(Empty)",
+    "pageInfo": "Page {{current}} of {{total}}",
+    "itemsInfo": "Showing {{start}}-{{end}} of {{total}} items"
   },
   "loading": "Loading..."
 }

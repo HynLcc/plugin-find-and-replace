@@ -147,7 +147,16 @@
     "viewRequired": "需要选择视图",
     "viewRequiredMessage": "请在上面的视图中选择以缩小搜索范围，然后再继续操作",
     "resultsFoundInView": "在视图 \"{{viewName}}\" 中找到 {{count}} 个匹配项",
-    "noResultsInView": "在视图 \"{{viewName}}\" 中未找到匹配项"
+    "noResultsInView": "在视图 \"{{viewName}}\" 中未找到匹配项",
+    "searchSuggestions": "尝试调整搜索条件或检查拼写",
+    "allResults": "全部结果",
+    "total": "总计",
+    "itemNumber": "第 {{number}} 项",
+    "originalContent": "原始内容",
+    "newContent": "替换后",
+    "empty": "(空)",
+    "pageInfo": "第 {{current}} 页，共 {{total}} 页",
+    "itemsInfo": "显示 {{start}}-{{end}} 项，共 {{total}} 项"
   },
   "loading": "加载中..."
 }
